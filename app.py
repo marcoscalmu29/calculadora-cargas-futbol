@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión Fiel al Colab Original (Corregida)
+# Streamlit App - Versión 2.0 (Mesociclos y Colores)
 # ============================================================
 
 import os
@@ -216,7 +216,7 @@ def calcular_carga(jugadores, duracion, tipo, modo_espacio, rpe_val, ida_vuelta_
     }
 
 # ============================================================
-# HISTÓRICO DE SESIONES Y LONGITUDINAL (ACWR / MONOTONÍA)
+# HISTÓRICO DE SESIONES Y LONGITUDINAL 
 # ============================================================
 def obtener_resumen_sesion():
     if not st.session_state.session_tasks: return None, None
@@ -240,7 +240,8 @@ def get_history_dataframe():
     if not st.session_state.saved_sessions: return None
     rows = []
     for i, sess in enumerate(st.session_state.saved_sessions, start=1):
-        row = {"Orden": i, "Sesión": sess["session_name"], "Objetivo": sess["goal"]}
+        # Asegurarnos de que el microciclo se exporta también
+        row = {"Orden": i, "Microciclo": sess.get("microcycle", "Micro 1"), "Sesión": sess["session_name"], "Objetivo": sess["goal"]}
         row.update(sess["summary"])
         rows.append(row)
     return pd.DataFrame(rows)
@@ -311,7 +312,6 @@ def grafico_aporte_por_tarea(df, variable_col, titulo):
 def generar_pdf(session_name, goal, df, resumen):
     buf = io.BytesIO()
     with PdfPages(buf) as pdf:
-        # Portada / Tabla resumen
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.axis('off')
         plt.title(f"Informe de Cargas: {session_name} ({goal})", fontsize=16, fontweight='bold', pad=20)
@@ -322,7 +322,6 @@ def generar_pdf(session_name, goal, df, resumen):
         pdf.savefig(fig, bbox_inches='tight')
         plt.close(fig)
 
-        # Gráfico Carga
         fig, ax = plt.subplots(figsize=(11, 5))
         ax.bar(df["Nombre tarea"], df["Distancia total (m)"].fillna(0), color="#3b82f6")
         ax.set_title("Distancia total por tarea")
@@ -331,7 +330,6 @@ def generar_pdf(session_name, goal, df, resumen):
         pdf.savefig(fig, bbox_inches='tight')
         plt.close(fig)
         
-        # Gráfico HSR / Sprint
         x = range(len(df))
         fig, ax = plt.subplots(figsize=(11, 5))
         ax.bar(x, df["HSR total (m)"].fillna(0), width=0.4, label="HSR total (m)", color="#10b981")
@@ -344,7 +342,6 @@ def generar_pdf(session_name, goal, df, resumen):
         pdf.savefig(fig, bbox_inches='tight')
         plt.close(fig)
 
-        # Timeline
         fig, ax = plt.subplots(figsize=(12, 3.8))
         df["Dur_plot"] = df["Duración (min)"].fillna(0)
         lefts = [sum(df["Dur_plot"].iloc[:i]) for i in range(len(df))]
@@ -370,27 +367,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 tab_calc, tab_sesion, tab_analisis, tab_historico, tab_comp, tab_info = st.tabs([
-    "🛠️ Calculadora", "📋 Sesión Actual", "📈 Análisis", "📂 Histórico", "⚖️ Comparar", "ℹ️ Justificación"
+    "🛠️ Calculadora", "📋 Sesión Actual", "📈 Análisis", "📂 Histórico Semanal", "⚖️ Comparar", "ℹ️ Justificación"
 ])
 
 # ------------------------------------------------------------
 # 1. CALCULADORA
 # ------------------------------------------------------------
 with tab_calc:
-    col_s1, col_s2, col_s3 = st.columns([2, 2, 1])
+    col_s1, col_s2, col_s3, col_s4 = st.columns([2, 1, 1, 1])
     with col_s1: session_name = st.text_input("Nombre de la Sesión", value="Sesión 1")
     with col_s2: goal = st.selectbox("Objetivo sesión:", list(SESSION_GOALS.keys()), index=2)
-    with col_s3: 
+    # NUEVO: Selector de Microciclo
+    with col_s3: micro_sel = st.selectbox("Microciclo:", [f"Micro {i}" for i in range(1, 41)], index=0)
+    with col_s4: 
         st.write("")
         if st.button("💾 Guardar sesión", use_container_width=True):
             data_tmp, res_tmp = obtener_resumen_sesion()
             if data_tmp is not None:
-                payload = {"session_name": session_name, "goal": goal, "tasks": data_tmp.to_dict("records"), "summary": res_tmp.iloc[0].to_dict()}
+                payload = {"session_name": session_name, "goal": goal, "microcycle": micro_sel, "tasks": data_tmp.to_dict("records"), "summary": res_tmp.iloc[0].to_dict()}
                 idx = next((i for i, s in enumerate(st.session_state.saved_sessions) if s["session_name"] == session_name), None)
                 if idx is not None: st.session_state.saved_sessions[idx] = payload
                 else: st.session_state.saved_sessions.append(payload)
                 with open("historico_sesiones.json", "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
-                st.success(f"Sesión '{session_name}' guardada.")
+                st.success(f"Sesión '{session_name}' guardada en {micro_sel}.")
             else:
                 st.error("No hay tareas para guardar.")
 
@@ -463,7 +462,6 @@ with tab_calc:
         with c_btn1:
             st.write("")
             if st.button("✏️ Editar", use_container_width=True):
-                # Sobreescribe la tarea actual con los inputs superiores
                 res = calcular_carga(t_jug, t_dur, t_tipo, t_modo, t_rpe, t_ida, t_m2, t_largo, t_ancho, t_rep, t_nombre)
                 st.session_state.session_tasks[idx_edit] = res
                 st.rerun()
@@ -560,12 +558,6 @@ with tab_sesion:
             for i, row in data.iterrows(): ax.text(lefts[i] + (row["Dur_plot"]/2), 0, row["Nombre tarea"], ha="center", va="center", fontsize=9)
             ax.set_title("Timeline de la sesión"); ax.set_xlabel("Tiempo acumulado (min)"); plt.tight_layout()
             st.pyplot(f_time)
-            
-        st.markdown("#### Aporte porcentual por tarea")
-        f_ap1 = grafico_aporte_por_tarea(data, "HSR total (m)", "HSR")
-        if f_ap1: st.pyplot(f_ap1)
-        f_ap2 = grafico_aporte_por_tarea(data, "Sprint total (m)", "Sprint")
-        if f_ap2: st.pyplot(f_ap2)
 
 # ------------------------------------------------------------
 # 3. ANÁLISIS LONGITUDINAL Y ACWR
@@ -591,18 +583,54 @@ with tab_analisis:
         st.info("No hay histórico para analizar.")
 
 # ------------------------------------------------------------
-# 4. HISTÓRICO DE SESIONES
+# 4. HISTÓRICO SEMANAL (NUEVO DASHBOARD)
 # ------------------------------------------------------------
 with tab_historico:
-    st.markdown("### Histórico de sesiones")
+    st.markdown("### Base de Datos Semanal (Mesociclo)")
     if st.session_state.saved_sessions:
-        hist_df_export = pd.DataFrame([{"Sesión": s["session_name"], "Objetivo": s["goal"], **s["summary"]} for s in st.session_state.saved_sessions])
-        st.dataframe(hist_df_export, use_container_width=True)
+        
+        # 1. Preparar datos con Microciclo
+        hist_data = []
+        for s in st.session_state.saved_sessions:
+            row = {"Microciclo": s.get("microcycle", "Micro 1"), "Sesión": s["session_name"], "Objetivo": s["goal"]}
+            row.update(s["summary"])
+            hist_data.append(row)
+        hist_df_export = pd.DataFrame(hist_data)
+        
+        # 2. Filtro visual por Microciclo
+        micros_disponibles = hist_df_export["Microciclo"].unique()
+        filtro_micro = st.selectbox("Visualizar semana completa:", ["Todos los Microciclos"] + list(micros_disponibles))
+        
+        df_mostrar = hist_df_export if filtro_micro == "Todos los Microciclos" else hist_df_export[hist_df_export["Microciclo"] == filtro_micro]
+        
+        # 3. Tarjetas visuales de suma semanal (solo si filtras un micro)
+        if filtro_micro != "Todos los Microciclos":
+            tot_carga = df_mostrar["Carga total sesión (m)"].sum()
+            tot_hsr = df_mostrar["HSR total sesión (m)"].sum()
+            tot_sprint = df_mostrar["Sprint total sesión (m)"].sum()
+            tot_srpe = df_mostrar["sRPE total sesión"].sum()
+            
+            st.markdown(f"#### Totales del {filtro_micro}")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("sRPE Semanal", f"{tot_srpe:.1f}")
+            c2.metric("Carga Semanal", f"{tot_carga:.1f} m")
+            c3.metric("HSR Semanal", f"{tot_hsr:.1f} m")
+            c4.metric("Sprint Semanal", f"{tot_sprint:.1f} m")
+            st.write("")
+
+        # 4. Tabla con colores (Mapa de calor)
+        columnas_calor = ["sRPE total sesión", "Carga total sesión (m)", "HSR total sesión (m)", "Sprint total sesión (m)", "ACC total sesión (n)", "DEC total sesión (n)"]
+        
+        # Aplicamos un estilo visual degradado (YlOrRd = Amarillo a Rojo)
+        st.dataframe(
+            df_mostrar.style.background_gradient(cmap="YlOrRd", subset=columnas_calor).format(precision=1),
+            use_container_width=True
+        )
         
         json_hist = json.dumps(st.session_state.saved_sessions, ensure_ascii=False, indent=2).encode('utf-8')
-        st.download_button("Exportar histórico JSON", data=json_hist, file_name="historico_sesiones.json", mime="application/json")
+        st.download_button("📥 Exportar Backup (JSON)", data=json_hist, file_name="historico_sesiones.json", mime="application/json")
     else:
-        st.info("No hay sesiones guardadas.")
+        st.info("No hay sesiones guardadas en el histórico.")
 
 # ------------------------------------------------------------
 # 5. COMPARACIÓN
@@ -617,7 +645,6 @@ with tab_comp:
         with col_c1: compare_a = st.selectbox("Sesión A:", nombres, index=0)
         with col_c2: compare_b = st.selectbox("Sesión B:", nombres, index=1)
         
-        # EL BOTÓN CORREGIDO ESTÁ AQUÍ ABAJO:
         if st.button("Comparar sesiones", type="primary"):
             df_A = next(s for s in st.session_state.saved_sessions if s["session_name"] == compare_a)["summary"]
             df_B = next(s for s in st.session_state.saved_sessions if s["session_name"] == compare_b)["summary"]
