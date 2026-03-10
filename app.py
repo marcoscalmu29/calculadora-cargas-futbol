@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión Fiel al Colab Original (100% Funciones)
+# Streamlit App - Versión Fiel al Colab Original (Corregida)
 # ============================================================
 
 import os
@@ -617,7 +617,8 @@ with tab_comp:
         with col_c1: compare_a = st.selectbox("Sesión A:", nombres, index=0)
         with col_c2: compare_b = st.selectbox("Sesión B:", nombres, index=1)
         
-      if st.button("Comparar sesiones", type="primary"):
+        # EL BOTÓN CORREGIDO ESTÁ AQUÍ ABAJO:
+        if st.button("Comparar sesiones", type="primary"):
             df_A = next(s for s in st.session_state.saved_sessions if s["session_name"] == compare_a)["summary"]
             df_B = next(s for s in st.session_state.saved_sessions if s["session_name"] == compare_b)["summary"]
             
