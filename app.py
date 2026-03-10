@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión 2.1 (Librería corregida)
+# Streamlit App - Versión 2.2 (Carga y Navegación de Sesiones)
 # ============================================================
 
 import os
@@ -373,13 +373,39 @@ tab_calc, tab_sesion, tab_analisis, tab_historico, tab_comp, tab_info = st.tabs(
 # 1. CALCULADORA
 # ------------------------------------------------------------
 with tab_calc:
+    
+    # NUEVO: CARGAR SESIONES EXISTENTES
+    st.header("1. Cargar Sesión Existente")
+    col_load1, col_load2 = st.columns([3, 1])
+    with col_load1:
+        if st.session_state.saved_sessions:
+            sesiones_guardadas = [s["session_name"] for s in st.session_state.saved_sessions]
+            sesion_a_cargar = st.selectbox("Elige una sesión para recuperar sus tareas:", ["-- Nueva Sesión (Vacía) --"] + sesiones_guardadas)
+        else:
+            sesion_a_cargar = "-- Nueva Sesión (Vacía) --"
+            st.selectbox("Elige una sesión para recuperar sus tareas:", ["-- Nueva Sesión (Vacía) --"], disabled=True)
+            
+    with col_load2:
+        st.write("")
+        if st.button("📥 Cargar Sesión", use_container_width=True):
+            if sesion_a_cargar == "-- Nueva Sesión (Vacía) --":
+                st.session_state.session_tasks = []
+                st.info("Sesión vaciada. Lista para crear una nueva.")
+            else:
+                datos_sesion = next(s for s in st.session_state.saved_sessions if s["session_name"] == sesion_a_cargar)
+                st.session_state.session_tasks = copy.deepcopy(datos_sesion["tasks"])
+                st.success(f"¡Sesión '{sesion_a_cargar}' cargada! Ve a la pestaña 'Sesión Actual' para verla o añade más tareas.")
+
+    st.divider()
+
+    st.header("2. Guardar Sesión Actual")
     col_s1, col_s2, col_s3, col_s4 = st.columns([2, 1, 1, 1])
     with col_s1: session_name = st.text_input("Nombre de la Sesión", value="Sesión 1")
     with col_s2: goal = st.selectbox("Objetivo sesión:", list(SESSION_GOALS.keys()), index=2)
     with col_s3: micro_sel = st.selectbox("Microciclo:", [f"Micro {i}" for i in range(1, 41)], index=0)
     with col_s4: 
         st.write("")
-        if st.button("💾 Guardar sesión", use_container_width=True):
+        if st.button("💾 Guardar / Actualizar", use_container_width=True):
             data_tmp, res_tmp = obtener_resumen_sesion()
             if data_tmp is not None:
                 payload = {"session_name": session_name, "goal": goal, "microcycle": micro_sel, "tasks": data_tmp.to_dict("records"), "summary": res_tmp.iloc[0].to_dict()}
@@ -393,7 +419,7 @@ with tab_calc:
 
     st.divider()
     
-    # 1. Seleccionamos librería arriba
+    st.header("3. Añadir Nuevas Tareas")
     presets = ["Seleccionar tarea frecuente"] + list(st.session_state.custom_task_library.keys())
     c1, c2 = st.columns(2)
     with c1: t_nombre = st.text_input("Nombre tarea:", value="Tarea 1")
@@ -434,11 +460,10 @@ with tab_calc:
             t_m2, t_rep = 0, 0
 
     st.write("")
-    # 2. BOTONES DE ACCIÓN AL FINAL (Problema solucionado)
     col_btn_calc, col_btn_save = st.columns(2)
     
     with col_btn_calc:
-        if st.button("➕ Calcular y Añadir tarea", type="primary", use_container_width=True):
+        if st.button("➕ Calcular y Añadir tarea a la sesión", type="primary", use_container_width=True):
             res = calcular_carga(t_jug, t_dur, t_tipo, t_modo, t_rpe, t_ida, t_m2, t_largo, t_ancho, t_rep, t_nombre)
             st.session_state.session_tasks.append(res)
             st.success(f"Tarea añadida. Total en sesión: {len(st.session_state.session_tasks)}")
@@ -458,7 +483,7 @@ with tab_calc:
     st.divider()
     if st.session_state.session_tasks:
         df_edit = pd.DataFrame(st.session_state.session_tasks)
-        st.markdown("### Gestión de Tareas")
+        st.markdown("### Gestión de Tareas de la Sesión Actual")
         
         c_sel, c_btn1, c_btn2, c_btn3, c_btn4, c_btn5 = st.columns([3, 1, 1, 1, 1, 1])
         with c_sel: idx_edit = st.selectbox("Editar tarea:", range(len(df_edit)), format_func=lambda x: f"{x+1}. {df_edit.iloc[x]['Nombre tarea']} ({df_edit.iloc[x]['Ejercicio']})")
@@ -524,10 +549,10 @@ with tab_sesion:
             with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
                 data.to_excel(writer, sheet_name="Tareas", index=False)
                 resumen.to_excel(writer, sheet_name="Resumen", index=False)
-            st.download_button("Exportar Excel", data=buffer_excel.getvalue(), file_name=f"Sesion_{session_name}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button("Exportar Excel", data=buffer_excel.getvalue(), file_name=f"Sesion_Actual.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         with col_d3:
-            pdf_bytes = generar_pdf(session_name, goal, data, resumen)
-            st.download_button("Exportar PDF", data=pdf_bytes, file_name=f"Informe_{session_name}.pdf", mime="application/pdf", use_container_width=True)
+            pdf_bytes = generar_pdf("Sesion_Actual", goal, data, resumen)
+            st.download_button("Exportar PDF", data=pdf_bytes, file_name=f"Informe_Sesion.pdf", mime="application/pdf", use_container_width=True)
 
         st.markdown("### Panel de Gráficas")
         c_g1, c_g2 = st.columns(2)
@@ -593,7 +618,6 @@ with tab_historico:
     st.markdown("### Base de Datos Semanal (Mesociclo)")
     if st.session_state.saved_sessions:
         
-        # 1. Preparar datos con Microciclo
         hist_data = []
         for s in st.session_state.saved_sessions:
             row = {"Microciclo": s.get("microcycle", "Micro 1"), "Sesión": s["session_name"], "Objetivo": s["goal"]}
@@ -601,13 +625,11 @@ with tab_historico:
             hist_data.append(row)
         hist_df_export = pd.DataFrame(hist_data)
         
-        # 2. Filtro visual por Microciclo
         micros_disponibles = hist_df_export["Microciclo"].unique()
         filtro_micro = st.selectbox("Visualizar semana completa:", ["Todos los Microciclos"] + list(micros_disponibles))
         
         df_mostrar = hist_df_export if filtro_micro == "Todos los Microciclos" else hist_df_export[hist_df_export["Microciclo"] == filtro_micro]
         
-        # 3. Tarjetas visuales de suma semanal (solo si filtras un micro)
         if filtro_micro != "Todos los Microciclos":
             tot_carga = df_mostrar["Carga total sesión (m)"].sum()
             tot_hsr = df_mostrar["HSR total sesión (m)"].sum()
@@ -622,10 +644,8 @@ with tab_historico:
             c4.metric("Sprint Semanal", f"{tot_sprint:.1f} m")
             st.write("")
 
-        # 4. Tabla con colores (Mapa de calor)
         columnas_calor = ["sRPE total sesión", "Carga total sesión (m)", "HSR total sesión (m)", "Sprint total sesión (m)", "ACC total sesión (n)", "DEC total sesión (n)"]
         
-        # Aplicamos un estilo visual degradado (YlOrRd = Amarillo a Rojo)
         st.dataframe(
             df_mostrar.style.background_gradient(cmap="YlOrRd", subset=columnas_calor).format(precision=1),
             use_container_width=True
