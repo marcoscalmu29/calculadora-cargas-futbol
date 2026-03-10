@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión 2.2 (Carga y Navegación de Sesiones)
+# Streamlit App - Versión 2.3 (Gestor de Histórico y Borrado)
 # ============================================================
 
 import os
@@ -374,7 +374,6 @@ tab_calc, tab_sesion, tab_analisis, tab_historico, tab_comp, tab_info = st.tabs(
 # ------------------------------------------------------------
 with tab_calc:
     
-    # NUEVO: CARGAR SESIONES EXISTENTES
     st.header("1. Cargar Sesión Existente")
     col_load1, col_load2 = st.columns([3, 1])
     with col_load1:
@@ -612,7 +611,7 @@ with tab_analisis:
         st.info("No hay histórico para analizar.")
 
 # ------------------------------------------------------------
-# 4. HISTÓRICO SEMANAL (NUEVO DASHBOARD)
+# 4. HISTÓRICO SEMANAL (DASHBOARD Y BORRADO)
 # ------------------------------------------------------------
 with tab_historico:
     st.markdown("### Base de Datos Semanal (Mesociclo)")
@@ -651,8 +650,21 @@ with tab_historico:
             use_container_width=True
         )
         
+        # Botón para descargar el Backup
         json_hist = json.dumps(st.session_state.saved_sessions, ensure_ascii=False, indent=2).encode('utf-8')
         st.download_button("📥 Exportar Backup (JSON)", data=json_hist, file_name="historico_sesiones.json", mime="application/json")
+        
+        st.write("")
+        st.write("")
+        # --- NUEVO: ZONA DE PELIGRO PARA BORRAR HISTÓRICO ---
+        with st.expander("⚠️ Zona de peligro (Borrar datos)"):
+            st.warning("Si borras el histórico, perderás todas las sesiones guardadas. Te recomiendo descargar un Backup arriba antes de hacerlo.")
+            if st.button("🚨 Borrar TODO el histórico definitivamente"):
+                st.session_state.saved_sessions = []
+                if os.path.exists("historico_sesiones.json"):
+                    with open("historico_sesiones.json", "w", encoding="utf-8") as f:
+                        json.dump([], f)
+                st.rerun()
     else:
         st.info("No hay sesiones guardadas en el histórico.")
 
