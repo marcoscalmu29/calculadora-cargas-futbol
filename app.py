@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión Profesional Completa
+# Streamlit App - Versión Funcional Original
 # ============================================================
 
 import os
@@ -16,52 +16,11 @@ import streamlit as st
 # ============================================================
 # CONFIGURACIÓN DE STREAMLIT
 # ============================================================
-# 1. Configuración de página con tema visual
-st.set_page_config(
-    page_title="Performance Calculator | Soccer",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# 2. Inyección de CSS Personalizado para estética Pro
-st.markdown("""
-    <style>
-    /* Fondo general y fuentes */
-    .stApp { background-color: #f8fafc; }
-    
-    /* Estilo de las tarjetas de métricas */
-    [data-testid="stHtml"] .metric-card {
-        background-color: #ffffff;
-        border-radius: 15px;
-        padding: 20px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        text-align: center;
-    }
-    
-    /* Personalización de botones */
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.3s;
-        border: none;
-    }
-    
-    /* Encabezado Principal */
-    .main-header {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 15px;
-        margin-bottom: 2rem;
-        text-align: center;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
-    }
-    </style>
-    """, unsafe_allow_html=True)
+st.set_page_config(page_title="Calculadora Cargas Fútbol", layout="wide", page_icon="⚽")
+plt.rcParams["figure.figsize"] = (10, 4)
 
 # ============================================================
-# INICIALIZACIÓN DE MEMORIA Y ARCHIVOS (ESTADO GLOBAL)
+# INICIALIZACIÓN DE MEMORIA Y ARCHIVOS
 # ============================================================
 if 'session_tasks' not in st.session_state:
     st.session_state.session_tasks = []
@@ -107,7 +66,7 @@ SESSION_GOALS = {
 }
 
 # ============================================================
-# FUNCIONES MATEMÁTICAS BASE
+# FUNCIONES MATEMÁTICAS
 # ============================================================
 
 def calcular_app(largo, ancho, jugadores):
@@ -162,7 +121,7 @@ def minimo_sprint_min(largo, tipo, ida_vuelta_continua):
     return 0.0
 
 def metricas_base_excel(app):
-    app = max(app, 1) # Evitar log(0)
+    app = max(app, 1)
     dt = 19.243 * math.log(app) - 5.029
     d_sprint = 0.001 * app - 0.046
     d_acc = 1.321 * math.log(app) - 0.629
@@ -179,432 +138,166 @@ def box_to_box_acc_dec_totales(reps, d):
 
 def interpretacion_practica(carga_total, hsr_total, sprint_total, acc_total, dec_total, tipo):
     txt_carga = "baja" if carga_total < 300 else ("media" if carga_total < 700 else "alta")
-    txt_hsr = "reducida" if hsr_total < 20 else ("moderada" if hsr_total < 50 else "elevada")
-    txt_sprint = "baja" if sprint_total < 10 else ("moderada" if sprint_total < 25 else "alta")
-    txt_acc = "bajo" if acc_total < 5 else ("moderado" if acc_total < 12 else "alto")
-    txt_dec = "bajo" if dec_total < 5 else ("moderado" if dec_total < 12 else "alto")
-    return f"En {tipo.lower()}, la carga global es {txt_carga}; además, la exposición al HSR es {txt_hsr}, al sprint {txt_sprint}, aceleraciones {txt_acc} y deceleraciones {txt_dec}."
+    return f"En {tipo.lower()}, la carga global es {txt_carga}; HSR: {hsr_total:.1f}m, Sprint: {sprint_total:.1f}m."
 
 # ============================================================
-# CÁLCULO DE LA TAREA
+# CÁLCULOS Y SESIONES
 # ============================================================
+
 def calcular_carga(jugadores, duracion, tipo, modo_espacio, rpe_val, ida_vuelta_continua, m2, largo, ancho, repeticiones, nombre_tarea):
     srpe = rpe_val * duracion
-
     if tipo == "Box to Box":
-        distancia_total = largo * repeticiones
-        hsr_total = distancia_total * box_to_box_hsr_ratio(largo)
-        sprint_total = distancia_total * box_to_box_sprint_ratio(largo)
-        sprints_totales = sprint_total / 19.1
-        acc_total, dec_total = box_to_box_acc_dec_totales(repeticiones, largo)
-        interpretacion = interpretacion_practica(distancia_total, hsr_total, sprint_total, acc_total, dec_total, tipo)
-        clasif, semaforo = clasificar_carga(distancia_total)
-
+        dist_total = largo * repeticiones
+        hsr_total = dist_total * box_to_box_hsr_ratio(largo)
+        sprint_total = dist_total * box_to_box_sprint_ratio(largo)
+        acc_t, dec_t = box_to_box_acc_dec_totales(repeticiones, largo)
+        clasif, sem = clasificar_carga(dist_total)
         return {
-            "Nombre tarea": nombre_tarea.strip() or "Tarea", "Ejercicio": tipo, "RPE": rpe_val, "sRPE": round(srpe, 2),
+            "Nombre tarea": nombre_tarea or "Tarea", "Ejercicio": tipo, "RPE": rpe_val, "sRPE": round(srpe, 2),
             "Largo (m)": round(largo, 2), "Ancho (m)": None, "ApP (m²/jugador)": None, "Jugadores": int(jugadores),
-            "Duración (min)": round(duracion, 2), "Repeticiones": int(repeticiones), "Ida y vuelta continua": "No aplica",
-            "Distancia total (m)": round(distancia_total, 2), "HSR total (m)": round(hsr_total, 2), "Sprint total (m)": round(sprint_total, 2),
-            "Sprints totales (n)": round(sprints_totales, 2), "ACC total (n)": round(acc_total, 2), "DEC total (n)": round(dec_total, 2),
-            "Carga total (m)": round(distancia_total, 2), "Clasificación": clasif, "Semáforo": semaforo, "Interpretación": interpretacion
+            "Duración (min)": round(duracion, 2), "Repeticiones": int(repeticiones), "Ida y vuelta continua": "N/A",
+            "Distancia total (m)": round(dist_total, 2), "HSR total (m)": round(hsr_total, 2), "Sprint total (m)": round(sprint_total, 2),
+            "Sprints totales (n)": round(sprint_total/19.1, 2), "ACC total (n)": round(acc_t, 2), "DEC total (n)": round(dec_t, 2),
+            "Carga total (m)": round(dist_total, 2), "Clasificación": clasif, "Semáforo": sem, 
+            "Interpretación": interpretacion_practica(dist_total, hsr_total, sprint_total, acc_t, dec_t, tipo)
         }
 
-    # Resto de tareas
     if modo_espacio == "m2":
-        app, largo_val, ancho_val = m2, None, None
-        factor_long = factor_cont = 1.0
-        suelo_hsr = suelo_sprint = 0.0
+        app = m2
+        l_v, a_v, f_l, f_c, s_h, s_s = None, None, 1.0, 1.0, 0.0, 0.0
     else:
         app = calcular_app(largo, ancho, jugadores)
-        largo_val, ancho_val = largo, ancho
-        factor_long = factor_longitudinal(largo, ancho, tipo)
-        factor_cont = factor_continuidad(ida_vuelta_continua, tipo)
-        suelo_hsr = minimo_hsr_min(largo, tipo, ida_vuelta_continua)
-        suelo_sprint = minimo_sprint_min(largo, tipo, ida_vuelta_continua)
+        l_v, a_v = largo, ancho
+        f_l = factor_longitudinal(largo, ancho, tipo)
+        f_c = factor_continuidad(ida_vuelta_continua, tipo)
+        s_h = minimo_hsr_min(largo, tipo, ida_vuelta_continua)
+        s_s = minimo_sprint_min(largo, tipo, ida_vuelta_continua)
 
-    factores = FACTORES_EJERCICIO[tipo]
-    dt, d_sprint, d_acc, acc, d_dec, dec = metricas_base_excel(app)
-
-    hsr_min = max(hsr_relativo(app) * factores["hsr"] * factor_long * factor_cont, suelo_hsr)
-    sprint_min = max(d_sprint * factores["sprint"] * factor_long * factor_cont, suelo_sprint)
-    
-    hsr_total, sprint_total = hsr_min * duracion, sprint_min * duracion
-    sprints_totales = sprint_total / 19.1
-    acc_total, dec_total = (acc * factores["acc"]) * duracion, (dec * factores["dec"]) * duracion
-    carga_total = dt * duracion
-    clasif, semaforo = clasificar_carga(carga_total)
-    
+    fact = FACTORES_EJERCICIO[tipo]
+    dt, ds, dacc, nacc, ddec, ndec = metricas_base_excel(app)
+    hsr_t = max(hsr_relativo(app) * fact["hsr"] * f_l * f_c, s_h) * duracion
+    spr_t = max(ds * fact["sprint"] * f_l * f_c, s_s) * duracion
+    ct = dt * duracion
+    cl, sem = clasificar_carga(ct)
     return {
-        "Nombre tarea": nombre_tarea.strip() or "Tarea", "Ejercicio": tipo, "RPE": rpe_val, "sRPE": round(srpe, 2),
-        "Largo (m)": round(largo_val, 2) if largo_val else None, "Ancho (m)": round(ancho_val, 2) if ancho_val else None,
-        "ApP (m²/jugador)": round(app, 2), "Jugadores": int(jugadores), "Duración (min)": round(duracion, 2), "Repeticiones": None,
-        "Ida y vuelta continua": "Sí" if ida_vuelta_continua else "No",
-        "Distancia total (m)": round(carga_total, 2), "HSR total (m)": round(hsr_total, 2), "Sprint total (m)": round(sprint_total, 2),
-        "Sprints totales (n)": round(sprints_totales, 2), "ACC total (n)": round(acc_total, 2), "DEC total (n)": round(dec_total, 2),
-        "Carga total (m)": round(carga_total, 2), "Clasificación": clasif, "Semáforo": semaforo, 
-        "Interpretación": interpretacion_practica(carga_total, hsr_total, sprint_total, acc_total, dec_total, tipo)
+        "Nombre tarea": nombre_tarea or "Tarea", "Ejercicio": tipo, "RPE": rpe_val, "sRPE": round(srpe, 2),
+        "Largo (m)": l_v, "Ancho (m)": a_v, "ApP (m²/jugador)": round(app, 2), "Jugadores": int(jugadores),
+        "Duración (min)": round(duracion, 2), "Repeticiones": None, "Ida y vuelta continua": "Sí" if ida_vuelta_continua else "No",
+        "Distancia total (m)": round(ct, 2), "HSR total (m)": round(hsr_t, 2), "Sprint total (m)": round(spr_t, 2),
+        "Sprints totales (n)": round(spr_t/19.1, 2), "ACC total (n)": round(nacc*fact["acc"]*duracion, 2), "DEC total (n)": round(ndec*fact["dec"]*duracion, 2),
+        "Carga total (m)": round(ct, 2), "Clasificación": cl, "Semáforo": sem, 
+        "Interpretación": interpretacion_practica(ct, hsr_t, spr_t, 0, 0, tipo)
     }
 
-# ============================================================
-# LÓGICA DE SESIONES E HISTÓRICO
-# ============================================================
 def obtener_resumen_sesion():
     if not st.session_state.session_tasks: return None, None
     df = pd.DataFrame(st.session_state.session_tasks)
-    resumen = pd.DataFrame([{
-        "Número de tareas": len(df),
-        "Duración total (min)": df["Duración (min)"].fillna(0).sum(),
-        "RPE medio": df["RPE"].mean(),
-        "sRPE total sesión": df["sRPE"].fillna(0).sum(),
-        "Distancia total sesión (m)": df["Distancia total (m)"].fillna(0).sum(),
-        "Sprint total sesión (m)": df["Sprint total (m)"].fillna(0).sum(),
-        "Sprints totales sesión (n)": df["Sprints totales (n)"].fillna(0).sum(),
-        "HSR total sesión (m)": df["HSR total (m)"].fillna(0).sum(),
-        "ACC total sesión (n)": df["ACC total (n)"].fillna(0).sum(),
-        "DEC total sesión (n)": df["DEC total (n)"].fillna(0).sum(),
-        "Carga total sesión (m)": df["Carga total (m)"].fillna(0).sum()
+    res = pd.DataFrame([{
+        "Número de tareas": len(df), "Duración total (min)": df["Duración (min)"].sum(),
+        "sRPE total sesión": df["sRPE"].sum(), "Distancia total sesión (m)": df["Distancia total (m)"].sum(),
+        "Sprint total sesión (m)": df["Sprint total (m)"].sum(), "Sprints totales sesión (n)": df["Sprints totales (n)"].sum(),
+        "HSR total sesión (m)": df["HSR total (m)"].sum(), "ACC total sesión (n)": df["ACC total (n)"].sum(),
+        "DEC total sesión (n)": df["DEC total (n)"].sum(), "Carga total sesión (m)": df["Carga total (m)"].sum()
     }])
-    return df, resumen
-
-def build_planning_table(summary_row, goal_name):
-    ranges = SESSION_GOALS.get(goal_name, SESSION_GOALS["Personalizado"])
-    metrics = [
-        ("Distancia total sesión (m)", "distance"), ("HSR total sesión (m)", "hsr"),
-        ("Sprint total sesión (m)", "sprint"), ("Sprints totales sesión (n)", "sprints"),
-        ("ACC total sesión (n)", "acc"), ("DEC total sesión (n)", "dec")
-    ]
-    rows = []
-    for label, key in metrics:
-        real = float(summary_row[label])
-        min_v, max_v = ranges[key]
-        estado = "🟡 Bajo" if real < min_v else ("🔴 Alto" if real > max_v else "🟢 Adecuado")
-        rows.append({"Variable": label, "Obj. mínimo": min_v, "Obj. máximo": max_v, "Valor sesión": round(real, 2), "Estado": estado})
-    return pd.DataFrame(rows)
+    return df, res
 
 def save_session_to_history(name, goal):
     data, resumen = obtener_resumen_sesion()
     if data is None: return False
     payload = {"session_name": name, "goal": goal, "tasks": data.to_dict("records"), "summary": resumen.iloc[0].to_dict()}
-    
-    idx = next((i for i, s in enumerate(st.session_state.saved_sessions) if s["session_name"] == name), None)
-    if idx is not None: st.session_state.saved_sessions[idx] = payload
-    else: st.session_state.saved_sessions.append(payload)
-    
-    with open("historico_sesiones.json", "w", encoding="utf-8") as f:
-        json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
+    st.session_state.saved_sessions.append(payload)
+    with open("historico_sesiones.json", "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, indent=2)
     return True
+
+# ============================================================
+# INTERFAZ VISUAL (TARJETAS)
+# ============================================================
 
 def session_cards_html():
     data, resumen = obtener_resumen_sesion()
-    if data is None:
-        return '<div style="padding:20px; color:#64748b;">Aún no hay tareas añadidas...</div>'
+    if data is None: return "<div>No hay tareas.</div>"
+    vals = {
+        "sRPE Total": resumen["sRPE total sesión"].iloc[0],
+        "Distancia (m)": resumen["Distancia total sesión (m)"].iloc[0],
+        "HSR (m)": resumen["HSR total sesión (m)"].iloc[0],
+        "Sprint (m)": resumen["Sprint total sesión (m)"].iloc[0],
+        "ACC (n)": resumen["ACC total sesión (n)"].iloc[0],
+        "DEC (n)": resumen["DEC total sesión (n)"].iloc[0],
+    }
+    cards = ""
+    for k, v in vals.items():
+        cards += f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;min-width:130px;box-shadow:0 2px 5px rgba(0,0,0,0.05);margin:5px;"><div style="font-size:12px;color:#64748b;">{k}</div><div style="font-size:20px;font-weight:700;">{float(v):.1f}</div></div>'
+    return f'<div style="display:flex;flex-wrap:wrap;">{cards}</div>'
 
-    # Definimos los valores
-    metrics = [
-        {"label": "sRPE Total", "val": resumen["sRPE total sesión"].iloc[0], "icon": "🧠", "color": "#3b82f6"},
-        {"label": "Distancia (m)", "val": resumen["Distancia total sesión (m)"].iloc[0], "icon": "🏃", "color": "#0f172a"},
-        {"label": "HSR (m)", "val": resumen["HSR total sesión (m)"].iloc[0], "icon": "⚡", "color": "#10b981"},
-        {"label": "Sprint (m)", "val": resumen["Sprint total sesión (m)"].iloc[0], "icon": "🔥", "color": "#ef4444"},
-        {"label": "ACC (n)", "val": resumen["ACC total sesión (n)"].iloc[0], "icon": "🚀", "color": "#f59e0b"},
-    ]
+# ============================================================
+# GRÁFICOS
+# ============================================================
 
-    cards_html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem;">'
-    for m in metrics:
-        cards_html += f"""
-            <div class="metric-card">
-                <div style="font-size: 1.5rem; margin-bottom: 5px;">{m['icon']}</div>
-                <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase;">{m['label']}</div>
-                <div style="font-size: 1.6rem; font-weight: 800; color: {m['color']};">{float(m['val']):.1f}</div>
-            </div>
-        """
-    cards_html += '</div>'
-    return cards_html
-# ============================================================
-# GRÁFICOS (Retornan Figuras para Streamlit)
-# ============================================================
-def generar_grafico(tipo_grafico):
+def generar_grafico(tipo):
     if not st.session_state.session_tasks: return None
     df = pd.DataFrame(st.session_state.session_tasks)
-    fig, ax = plt.subplots(figsize=(10, 4))
-    
-    if tipo_grafico == "carga":
-        ax.bar(df["Nombre tarea"], df["Distancia total (m)"].fillna(0), color="#3b82f6")
-        ax.set_title("Distancia Total por Tarea", fontweight="bold")
-    elif tipo_grafico == "hsr":
-        x = range(len(df))
-        ax.bar(x, df["HSR total (m)"].fillna(0), width=0.4, label="HSR (>19.8 km/h)", color="#10b981")
-        ax.bar([i + 0.4 for i in x], df["Sprint total (m)"].fillna(0), width=0.4, label="Sprint (>25.2 km/h)", color="#ef4444")
-        ax.set_xticks([i + 0.2 for i in x])
-        ax.set_xticklabels(df["Nombre tarea"])
-        ax.set_title("Alta Velocidad por Tarea", fontweight="bold")
-        ax.legend()
-    elif tipo_grafico == "acc":
-        x = range(len(df))
-        ax.bar(x, df["ACC total (n)"].fillna(0), width=0.4, label="Aceleraciones", color="#f59e0b")
-        ax.bar([i + 0.4 for i in x], df["DEC total (n)"].fillna(0), width=0.4, label="Deceleraciones", color="#6366f1")
-        ax.set_xticks([i + 0.2 for i in x])
-        ax.set_xticklabels(df["Nombre tarea"])
-        ax.set_title("Carga Mecánica por Tarea", fontweight="bold")
-        ax.legend()
-    elif tipo_grafico == "timeline":
-        df["Dur_plot"] = df["Duración (min)"].fillna(0)
-        lefts = [sum(df["Dur_plot"].iloc[:i]) for i in range(len(df))]
-        ax.barh(["Timeline"] * len(df), df["Dur_plot"], left=lefts, color="#e2e8f0", edgecolor="#64748b")
-        for i, row in df.iterrows():
-            ax.text(lefts[i] + (row["Dur_plot"]/2), 0, row["Nombre tarea"][:12], ha="center", va="center", fontsize=9, fontweight="bold")
-        ax.set_title("Estructura Temporal", fontweight="bold")
-        
-    plt.xticks(rotation=35 if tipo_grafico != "timeline" else 0, ha="right" if tipo_grafico != "timeline" else "center")
-    plt.tight_layout()
+    fig, ax = plt.subplots()
+    if tipo == "carga":
+        ax.bar(df["Nombre tarea"], df["Distancia total (m)"])
+        ax.set_title("Distancia por Tarea")
+    elif tipo == "hsr":
+        ax.bar(df["Nombre tarea"], df["HSR total (m)"], color="green")
+        ax.set_title("HSR por Tarea")
+    plt.xticks(rotation=45)
     return fig
 
-def generar_pdf(session_name, goal):
-    buf = io.BytesIO()
-    with PdfPages(buf) as pdf:
-        # Portada / Tabla
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.axis('off')
-        _, resumen = obtener_resumen_sesion()
-        plt.title(f"Informe de Cargas: {session_name} ({goal})", fontsize=16, fontweight='bold', pad=20)
-        celdas = [[k, f"{v.iloc[0]:.2f}"] for k, v in resumen.items()]
-        tabla = ax.table(cellText=celdas, colLabels=["Métrica", "Valor"], loc='center', cellLoc='center')
-        tabla.scale(1, 2.2)
-        tabla.set_fontsize(11)
-        pdf.savefig(fig, bbox_inches='tight')
-        plt.close(fig)
-
-        # Gráficas
-        for tipo in ["carga", "hsr", "acc", "timeline"]:
-            f = generar_grafico(tipo)
-            if f:
-                pdf.savefig(f, bbox_inches='tight')
-                plt.close(f)
-    return buf.getvalue()
-
 # ============================================================
-# INTERFAZ WEB (FRONTEND)
+# ESTRUCTURA DE PESTAÑAS
 # ============================================================
 
-st.markdown('<div class="main-header"><h1>⚽ PERFORMANCE HUB</h1><p>Calculadora Avanzada de Cargas de Entrenamiento</p></div>', unsafe_allow_html=True)
+st.title("⚽ Calculadora de Cargas en Fútbol")
 
-# Dividir la pantalla en pestañas
-tab_calc, tab_sesion, tab_analisis, tab_historico, tab_comp, tab_info = st.tabs([
-    "🛠️ Calculadora", "📋 Sesión Actual", "📈 Análisis", "📂 Histórico", "⚖️ Comparar", "ℹ️ Info"
-])
+t1, t2, t3, t4 = st.tabs(["Calculadora", "Sesión", "Histórico", "Info"])
 
-# ------------------------------------------------------------
-# PESTAÑA 1: CALCULADORA
-# ------------------------------------------------------------
-with tab_calc:
-    st.header("1. Configuración de Sesión")
-    col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
-    with col_s1: session_name = st.text_input("Nombre de la Sesión", value="Sesión 1")
-    with col_s2: goal = st.selectbox("Objetivo", list(SESSION_GOALS.keys()), index=2) # MD-3 por defecto
-    with col_s3: 
-        st.write("") # Espaciador
-        st.write("")
-        if st.button("💾 Guardar Sesión en Histórico", use_container_width=True):
-            if save_session_to_history(session_name, goal): st.success("¡Sesión guardada!")
-            else: st.error("Añade tareas primero.")
-
-    st.divider()
-    st.header("2. Diseño de Tarea")
+with t1:
+    col_a, col_b = st.columns(2)
+    with col_a:
+        s_name = st.text_input("Sesión", "Sesión 1")
+        t_name = st.text_input("Nombre Tarea", "Tarea 1")
+        ejer = st.selectbox("Ejercicio", list(FACTORES_EJERCICIO.keys()))
+    with col_b:
+        rpe = st.slider("RPE", 1, 10, 5)
+        jug = st.number_input("Jugadores", 1, 30, 10)
+        dur = st.number_input("Duración", 1.0, 120.0, 10.0)
     
-    # Selector de librería
-    presets = ["(Crear tarea desde cero)"] + list(st.session_state.custom_task_library.keys())
-    sel_preset = st.selectbox("📂 Cargar desde Librería Personal", presets)
-    
-    # Autorellenar si se elige preset
-    if sel_preset != "(Crear tarea desde cero)":
-        d = st.session_state.custom_task_library[sel_preset]
-        def_n, def_t = d.get("Nombre", ""), d.get("Ejercicio", "Transición/Oleadas")
-        def_mod, def_l, def_a, def_m2 = d.get("Modo", "campo"), float(d.get("Largo", 30)), float(d.get("Ancho", 15)), float(d.get("m2", 120))
-        def_j, def_dur, def_rep = int(d.get("Jugadores", 10)), float(d.get("Duracion", 9)), int(d.get("Repeticiones", 8))
-        def_rpe, def_ida = int(d.get("RPE", 5)), d.get("IdaVuelta", True)
+    modo = st.radio("Espacio", ["Largo x Ancho", "m2/jugador"])
+    c1, c2 = st.columns(2)
+    if modo == "Largo x Ancho":
+        with c1: lar = st.number_input("Largo", 1.0, 120.0, 30.0)
+        with c2: anc = st.number_input("Ancho", 1.0, 120.0, 20.0)
+        m2_val = 0
     else:
-        def_n, def_t, def_mod = "Tarea 1", "Transición/Oleadas", "campo"
-        def_l, def_a, def_m2, def_j, def_dur, def_rep = 30.0, 15.0, 120.0, 10, 9.0, 8
-        def_rpe, def_ida = 5, True
-
-    c1, c2, c3 = st.columns([2, 2, 1])
-    with c1: 
-        t_nombre = st.text_input("Nombre de la tarea", value=def_n)
-        t_tipo = st.selectbox("Tipo de Ejercicio", list(FACTORES_EJERCICIO.keys()), index=list(FACTORES_EJERCICIO.keys()).index(def_t) if def_t in FACTORES_EJERCICIO else 0)
-    with c2:
-        t_rpe = st.slider("RPE (1-10)", 1, 10, value=def_rpe)
-        st.write("")
-        if st.button("⭐ Guardar en Librería", use_container_width=True):
-            st.session_state.custom_task_library[t_nombre] = {
-                "Nombre": t_nombre, "Ejercicio": t_tipo, "Modo": "m2" if 't_modo' in locals() and t_modo=="m2" else "campo",
-                "Largo": 't_largo' in locals() and t_largo or def_l, "Ancho": 't_ancho' in locals() and t_ancho or def_a, "m2": 't_m2' in locals() and t_m2 or def_m2,
-                "Jugadores": 't_jug' in locals() and t_jug or def_j, "Duracion": 't_dur' in locals() and t_dur or def_dur, 
-                "Repeticiones": 't_rep' in locals() and t_rep or def_rep, "RPE": t_rpe, "IdaVuelta": 't_ida' in locals() and t_ida or def_ida
-            }
-            with open("libreria_tareas.json", "w", encoding="utf-8") as f: json.dump(st.session_state.custom_task_library, f)
-            st.rerun()
-
-    es_box = (t_tipo == "Box to Box")
+        m2_val = st.number_input("m2", 1.0, 500.0, 120.0)
+        lar = anc = 0
     
-    col_dim1, col_dim2, col_dim3 = st.columns(3)
-    if es_box:
-        with col_dim1: t_largo = st.number_input("Distancia carrera (m)", value=def_l)
-        with col_dim2: t_rep = st.number_input("Repeticiones", value=def_rep)
-        with col_dim3: 
-            t_jug = st.number_input("Jugadores implicados", value=def_j)
-            t_dur = st.number_input("Duración total (min) - Para sRPE", value=def_dur)
-        t_modo, t_ancho, t_m2, t_ida = "campo", 0, 0, False
-    else:
-        t_modo = st.radio("Definir espacio por:", ["Dimensiones del campo (Largo x Ancho)", "Metros cuadrados (m²/jugador)"], index=1 if def_mod=="m2" else 0)
-        t_modo = "m2" if "Metros" in t_modo else "campo"
-        
-        with col_dim1: t_jug = st.number_input("Jugadores", value=def_j)
-        with col_dim2: t_dur = st.number_input("Duración (min)", value=def_dur)
-        with col_dim3: t_ida = st.checkbox("Ida y vuelta continua (Transiciones)", value=def_ida)
-        
-        if t_modo == "m2":
-            t_m2 = st.number_input("m²/jugador", value=def_m2)
-            t_largo, t_ancho, t_rep = 0, 0, 0
-        else:
-            c_l, c_a = st.columns(2)
-            with c_l: t_largo = st.number_input("Largo (m)", value=def_l)
-            with c_a: t_ancho = st.number_input("Ancho (m)", value=def_a)
-            t_m2, t_rep = 0, 0
-
-    st.write("")
-    if st.button("➕ Calcular y Añadir a la Sesión", type="primary", use_container_width=True):
-        res = calcular_carga(t_jug, t_dur, t_tipo, t_modo, t_rpe, t_ida, t_m2, t_largo, t_ancho, t_rep, t_nombre)
+    if st.button("Añadir Tarea"):
+        res = calcular_carga(jug, dur, ejer, "m2" if modo=="m2" else "campo", rpe, False, m2_val, lar, anc, 8, t_name)
         st.session_state.session_tasks.append(res)
-        st.success(f"¡{t_nombre} calculada y añadida con éxito!")
+        st.success("Añadida!")
 
-    st.divider()
-    st.header("3. Gestor de Tareas Activas")
-    if st.session_state.session_tasks:
-        df_edit = pd.DataFrame(st.session_state.session_tasks)
-        st.dataframe(df_edit[["Nombre tarea", "Ejercicio", "Duración (min)", "sRPE", "Carga total (m)", "Semáforo"]], use_container_width=True)
-        
-        cdel1, cdel2, cdel3 = st.columns(3)
-        with cdel1:
-            idx_edit = st.selectbox("Selecciona una tarea:", range(len(df_edit)), format_func=lambda x: df_edit.iloc[x]["Nombre tarea"])
-        with cdel2:
-            st.write("")
-            if st.button("📄 Duplicar Tarea", use_container_width=True):
-                dup = copy.deepcopy(st.session_state.session_tasks[idx_edit])
-                dup["Nombre tarea"] += " (copia)"
-                st.session_state.session_tasks.insert(idx_edit + 1, dup)
-                st.rerun()
-        with cdel3:
-            st.write("")
-            if st.button("🗑️ Eliminar Tarea", use_container_width=True):
-                st.session_state.session_tasks.pop(idx_edit)
-                st.rerun()
-        
-        if st.button("🚨 Borrar TODA la sesión", type="secondary"):
-            st.session_state.session_tasks = []
-            st.rerun()
-
-# ------------------------------------------------------------
-# PESTAÑA 2: SESIÓN ACTUAL
-# ------------------------------------------------------------
-with tab_sesion:
+with t2:
     data, resumen = obtener_resumen_sesion()
-    if data is None:
-        st.info("No hay tareas. Configura la sesión en la pestaña 'Calculadora'.")
-    else:
+    if data is not None:
         st.markdown(session_cards_html(), unsafe_allow_html=True)
-        
-        col_down1, col_down2 = st.columns(2)
-        with col_down1:
-            csv_sesion = data.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Descargar Tareas (CSV)", data=csv_sesion, file_name="tareas_sesion.csv", mime="text/csv", use_container_width=True)
-        with col_down2:
-            pdf_bytes = generar_pdf(session_name, goal)
-            st.download_button("📄 Descargar Informe Visual (PDF)", data=pdf_bytes, file_name=f"Informe_{session_name}.pdf", mime="application/pdf", use_container_width=True)
-
-        st.subheader("Semáforo de Planificación")
-        st.dataframe(build_planning_table(resumen.iloc[0], goal), use_container_width=True)
-        
-        st.subheader("Análisis Gráfico")
-        c_g1, c_g2 = st.columns(2)
-        with c_g1: st.pyplot(generar_grafico("carga"))
-        with c_g2: st.pyplot(generar_grafico("hsr"))
-        c_g3, c_g4 = st.columns(2)
-        with c_g3: st.pyplot(generar_grafico("acc"))
-        with c_g4: st.pyplot(generar_grafico("timeline"))
-
-# ------------------------------------------------------------
-# PESTAÑA 3: ANÁLISIS LONGITUDINAL
-# ------------------------------------------------------------
-with tab_analisis:
-    st.header("Análisis de Micro/Mesociclo")
-    if not st.session_state.saved_sessions:
-        st.info("Guarda varias sesiones en el histórico para ver su evolución.")
+        st.dataframe(data)
+        st.pyplot(generar_grafico("carga"))
+        if st.button("Guardar Sesión"):
+            save_session_to_history(s_name, "General")
+            st.success("Guardada en histórico")
     else:
-        historico_df = pd.DataFrame([{"Sesión": s["session_name"], **s["summary"]} for s in st.session_state.saved_sessions])
-        
-        metric_sel = st.selectbox("Métrica a visualizar:", ["sRPE total sesión", "Carga total sesión (m)", "HSR total sesión (m)", "Sprint total sesión (m)", "ACC total sesión (n)", "DEC total sesión (n)"])
-        
-        fig_hist, ax_hist = plt.subplots(figsize=(11, 4))
-        ax_hist.plot(historico_df["Sesión"], historico_df[metric_sel], marker="o", color="#2563eb", linewidth=2)
-        ax_hist.set_title(f"Evolución: {metric_sel}", fontweight="bold")
-        plt.xticks(rotation=45, ha="right")
-        st.pyplot(fig_hist)
+        st.write("Sin datos.")
 
-# ------------------------------------------------------------
-# PESTAÑA 4: HISTÓRICO
-# ------------------------------------------------------------
-with tab_historico:
-    st.header("Base de Datos de Sesiones")
-    if not st.session_state.saved_sessions:
-        st.info("No hay sesiones guardadas.")
+with t3:
+    if st.session_state.saved_sessions:
+        h_df = pd.DataFrame([{"Sesión": s["session_name"], **s["summary"]} for s in st.session_state.saved_sessions])
+        st.dataframe(h_df)
     else:
-        historico_df = pd.DataFrame([{"Sesión": s["session_name"], "Objetivo": s["goal"], **s["summary"]} for s in st.session_state.saved_sessions])
-        st.dataframe(historico_df, use_container_width=True)
-        
-        csv_hist = historico_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Descargar Histórico (CSV)", data=csv_hist, file_name="historico_cargas.csv", mime="text/csv")
+        st.write("No hay sesiones.")
 
-# ------------------------------------------------------------
-# PESTAÑA 5: COMPARACIÓN
-# ------------------------------------------------------------
-with tab_comp:
-    st.header("Comparador A/B de Sesiones")
-    nombres = [s["session_name"] for s in st.session_state.saved_sessions]
-    if len(nombres) < 2:
-        st.info("Necesitas al menos 2 sesiones guardadas para comparar.")
-    else:
-        col_c1, col_c2 = st.columns(2)
-        with col_c1: ses_A = st.selectbox("Sesión A (Referencia)", nombres, index=0)
-        with col_c2: ses_B = st.selectbox("Sesión B (A comparar)", nombres, index=1)
-        
-        df_A = next(s for s in st.session_state.saved_sessions if s["session_name"] == ses_A)["summary"]
-        df_B = next(s for s in st.session_state.saved_sessions if s["session_name"] == ses_B)["summary"]
-        
-        keys = ["sRPE total sesión", "Carga total sesión (m)", "HSR total sesión (m)", "Sprint total sesión (m)", "ACC total sesión (n)"]
-        comp_data = []
-        for k in keys:
-            a, b = float(df_A.get(k,0)), float(df_B.get(k,0))
-            diff = b - a
-            pct = f"{((diff/a)*100):.1f}%" if a!=0 else "-"
-            comp_data.append({"Métrica": k, ses_A: round(a,1), ses_B: round(b,1), "Diferencia": round(diff,1), "% Evolución": pct})
-            
-        st.dataframe(pd.DataFrame(comp_data), use_container_width=True)
-
-# ------------------------------------------------------------
-# PESTAÑA 6: JUSTIFICACIÓN
-# ------------------------------------------------------------
-with tab_info:
-    st.markdown("""
-    ## JUSTIFICACIÓN TÉCNICA
-    La aplicación se construye a partir de un modelo híbrido: incorpora las ecuaciones base de un Excel estandarizado 
-    y añade ajustes prácticos para tareas longitudinales y entrenamiento específico en fútbol.
-    
-    ### Fórmulas del Excel:
-    - **Distancia total (m/min)** = $19.243 \times \ln(m²/jugador) - 5.029$
-    - **Distancia sprint (m/min)** = $0.001 \times (m²/jugador) - 0.046$
-    - **Aceleraciones (nº/min)** = $0.212 \times \ln(m²/jugador) - 0.23$
-    - **Deceleraciones (nº/min)** = $0.104 \times \ln(m²/jugador) - 0.096$
-    
-    ### Integración de RPE
-    Se ha integrado la métrica **sRPE (Session-RPE)** multiplicando el valor subjetivo de esfuerzo (1-10) 
-    por la duración de la tarea, permitiendo cruzar la Carga Externa objetiva con la Interna subjetiva.
-    """)
+with t4:
+    st.write("Calculadora basada en modelos de área por jugador.")
