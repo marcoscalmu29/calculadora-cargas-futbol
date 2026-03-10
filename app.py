@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión Profesional Completa y Corregida
+# Streamlit App - Versión Profesional Definitiva
 # ============================================================
 
 import os
@@ -273,7 +273,7 @@ def session_cards_html():
     cards = ""
     for k, v in vals.items():
         color = "#2563eb" if "sRPE" in k else "#0f172a"
-        # ¡ATENCIÓN! Todo en una sola línea y sin tabulaciones a la izquierda
+        # ¡ATENCIÓN! Todo en una sola línea y sin tabulaciones a la izquierda para evitar que se renderice como código.
         cards += f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.05);"><div style="font-size:13px;color:#475569;">{k}</div><div style="font-size:24px;font-weight:700;color:{color};">{float(v):.1f}</div></div>'
         
     return f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 16px 0;">{cards}</div>'
@@ -471,13 +471,23 @@ with tab_sesion:
     else:
         st.markdown(session_cards_html(), unsafe_allow_html=True)
         
-        col_down1, col_down2 = st.columns(2)
+        # ----------------- BOTONES DE DESCARGA -----------------
+        col_down1, col_down2, col_down3 = st.columns(3)
         with col_down1:
             csv_sesion = data.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Descargar Tareas (CSV)", data=csv_sesion, file_name="tareas_sesion.csv", mime="text/csv", use_container_width=True)
+            st.download_button("📥 Descargar CSV", data=csv_sesion, file_name="tareas_sesion.csv", mime="text/csv", use_container_width=True)
+        
         with col_down2:
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                data.to_excel(writer, sheet_name="Tareas", index=False)
+                resumen.to_excel(writer, sheet_name="Resumen", index=False)
+            st.download_button("📊 Descargar Excel", data=buffer_excel.getvalue(), file_name=f"Sesion_{session_name}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            
+        with col_down3:
             pdf_bytes = generar_pdf(session_name, goal)
-            st.download_button("📄 Descargar Informe Visual (PDF)", data=pdf_bytes, file_name=f"Informe_{session_name}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button("📄 Descargar PDF", data=pdf_bytes, file_name=f"Informe_{session_name}.pdf", mime="application/pdf", use_container_width=True)
+        # -------------------------------------------------------
 
         st.subheader("Semáforo de Planificación")
         st.dataframe(build_planning_table(resumen.iloc[0], goal), use_container_width=True)
@@ -558,12 +568,12 @@ with tab_info:
     y añade ajustes prácticos para tareas longitudinales y entrenamiento específico en fútbol.
     
     ### Fórmulas del Excel:
-    - **Distancia total (m/min)** = $19.243 \\times \ln(m^2/\text{jugador}) - 5.029$
-    - **Distancia sprint (m/min)** = $0.001 \\times (m^2/\text{jugador}) - 0.046$
-    - **Distancia en aceleración (m/min)** = $1.321 \\times \ln(m^2/\text{jugador}) - 0.629$
-    - **Aceleraciones (nº/min)** = $0.212 \\times \ln(m^2/\text{jugador}) - 0.23$
-    - **Distancia en deceleración (m/min)** = $1.157 \\times \ln(m^2/\text{jugador}) - 0.418$
-    - **Deceleraciones (nº/min)** = $0.104 \\times \ln(m^2/\text{jugador}) - 0.096$
+    - **Distancia total (m/min)** = 19.243 * ln(m²/jugador) - 5.029
+    - **Distancia sprint (m/min)** = 0.001 * (m²/jugador) - 0.046
+    - **Distancia en aceleración (m/min)** = 1.321 * ln(m²/jugador) - 0.629
+    - **Aceleraciones (nº/min)** = 0.212 * ln(m²/jugador) - 0.23
+    - **Distancia en deceleración (m/min)** = 1.157 * ln(m²/jugador) - 0.418
+    - **Deceleraciones (nº/min)** = 0.104 * ln(m²/jugador) - 0.096
     
     ### Integración de RPE
     Se ha integrado la métrica **sRPE (Session-RPE)** multiplicando el valor subjetivo de esfuerzo (1-10) 
