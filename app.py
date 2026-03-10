@@ -16,8 +16,49 @@ import streamlit as st
 # ============================================================
 # CONFIGURACIÓN DE STREAMLIT
 # ============================================================
-st.set_page_config(page_title="Calculadora Cargas Fútbol", layout="wide", page_icon="⚽")
-plt.rcParams["figure.figsize"] = (10, 4)
+# 1. Configuración de página con tema visual
+st.set_page_config(
+    page_title="Performance Calculator | Soccer",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# 2. Inyección de CSS Personalizado para estética Pro
+st.markdown("""
+    <style>
+    /* Fondo general y fuentes */
+    .stApp { background-color: #f8fafc; }
+    
+    /* Estilo de las tarjetas de métricas */
+    [data-testid="stHtml"] .metric-card {
+        background-color: #ffffff;
+        border-radius: 15px;
+        padding: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    
+    /* Personalización de botones */
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s;
+        border: none;
+    }
+    
+    /* Encabezado Principal */
+    .main-header {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ============================================================
 # INICIALIZACIÓN DE MEMORIA Y ARCHIVOS (ESTADO GLOBAL)
@@ -256,45 +297,28 @@ def save_session_to_history(name, goal):
 def session_cards_html():
     data, resumen = obtener_resumen_sesion()
     if data is None:
-        return '<div style="padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;">No hay tareas en la sesión.</div>'
+        return '<div style="padding:20px; color:#64748b;">Aún no hay tareas añadidas...</div>'
 
-    vals = {
-        "sRPE Total": resumen["sRPE total sesión"].iloc[0],
-        "Distancia (m)": resumen["Distancia total sesión (m)"].iloc[0],
-        "HSR (m)": resumen["HSR total sesión (m)"].iloc[0],
-        "Sprint (m)": resumen["Sprint total sesión (m)"].iloc[0],
-        "ACC (n)": resumen["ACC total sesión (n)"].iloc[0],
-        "DEC (n)": resumen["DEC total sesión (n)"].iloc[0],
-    }
+    # Definimos los valores
+    metrics = [
+        {"label": "sRPE Total", "val": resumen["sRPE total sesión"].iloc[0], "icon": "🧠", "color": "#3b82f6"},
+        {"label": "Distancia (m)", "val": resumen["Distancia total sesión (m)"].iloc[0], "icon": "🏃", "color": "#0f172a"},
+        {"label": "HSR (m)", "val": resumen["HSR total sesión (m)"].iloc[0], "icon": "⚡", "color": "#10b981"},
+        {"label": "Sprint (m)", "val": resumen["Sprint total sesión (m)"].iloc[0], "icon": "🔥", "color": "#ef4444"},
+        {"label": "ACC (n)", "val": resumen["ACC total sesión (n)"].iloc[0], "icon": "🚀", "color": "#f59e0b"},
+    ]
 
-    cards = ""
-    for k, v in vals.items():
-        color = "#2563eb" if "sRPE" in k else "#0f172a"
-        # HTML en una sola línea y sin espacios a la izquierda para evitar el formato de código
-        cards += f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.05);"><div style="font-size:13px;color:#475569;">{k}</div><div style="font-size:24px;font-weight:700;color:{color};">{float(v):.1f}</div></div>'
-        
-    return f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 16px 0;">{cards}</div>'
-
-    vals = {
-        "sRPE Total": resumen["sRPE total sesión"].iloc[0],
-        "Distancia (m)": resumen["Distancia total sesión (m)"].iloc[0],
-        "HSR (m)": resumen["HSR total sesión (m)"].iloc[0],
-        "Sprint (m)": resumen["Sprint total sesión (m)"].iloc[0],
-        "ACC (n)": resumen["ACC total sesión (n)"].iloc[0],
-        "DEC (n)": resumen["DEC total sesión (n)"].iloc[0],
-    }
-
-    cards = ""
-    for k, v in vals.items():
-        color = "#2563eb" if "sRPE" in k else "#0f172a"
-        cards += f"""
-        <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-            <div style="font-size:13px;color:#475569;">{k}</div>
-            <div style="font-size:24px;font-weight:700;color:{color};">{float(v):.1f}</div>
-        </div>
+    cards_html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem;">'
+    for m in metrics:
+        cards_html += f"""
+            <div class="metric-card">
+                <div style="font-size: 1.5rem; margin-bottom: 5px;">{m['icon']}</div>
+                <div style="font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase;">{m['label']}</div>
+                <div style="font-size: 1.6rem; font-weight: 800; color: {m['color']};">{float(m['val']):.1f}</div>
+            </div>
         """
-    return f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 16px 0;">{cards}</div>'
-
+    cards_html += '</div>'
+    return cards_html
 # ============================================================
 # GRÁFICOS (Retornan Figuras para Streamlit)
 # ============================================================
@@ -361,7 +385,7 @@ def generar_pdf(session_name, goal):
 # INTERFAZ WEB (FRONTEND)
 # ============================================================
 
-st.title("⚽ Calculadora Avanzada de Cargas en Fútbol")
+st.markdown('<div class="main-header"><h1>⚽ PERFORMANCE HUB</h1><p>Calculadora Avanzada de Cargas de Entrenamiento</p></div>', unsafe_allow_html=True)
 
 # Dividir la pantalla en pestañas
 tab_calc, tab_sesion, tab_analisis, tab_historico, tab_comp, tab_info = st.tabs([
