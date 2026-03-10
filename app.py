@@ -617,7 +617,7 @@ with tab_comp:
         with col_c1: compare_a = st.selectbox("Sesión A:", nombres, index=0)
         with col_c2: compare_b = st.selectbox("Sesión B:", nombres, index=1)
         
-        if st.button("Comparar sesiones", button_style="info" if hasattr(st, 'button_style') else None):
+      if st.button("Comparar sesiones", type="primary"):
             df_A = next(s for s in st.session_state.saved_sessions if s["session_name"] == compare_a)["summary"]
             df_B = next(s for s in st.session_state.saved_sessions if s["session_name"] == compare_b)["summary"]
             
