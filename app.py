@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión 2.0 (Mesociclos y Colores)
+# Streamlit App - Versión 2.1 (Librería corregida)
 # ============================================================
 
 import os
@@ -240,7 +240,6 @@ def get_history_dataframe():
     if not st.session_state.saved_sessions: return None
     rows = []
     for i, sess in enumerate(st.session_state.saved_sessions, start=1):
-        # Asegurarnos de que el microciclo se exporta también
         row = {"Orden": i, "Microciclo": sess.get("microcycle", "Micro 1"), "Sesión": sess["session_name"], "Objetivo": sess["goal"]}
         row.update(sess["summary"])
         rows.append(row)
@@ -377,7 +376,6 @@ with tab_calc:
     col_s1, col_s2, col_s3, col_s4 = st.columns([2, 1, 1, 1])
     with col_s1: session_name = st.text_input("Nombre de la Sesión", value="Sesión 1")
     with col_s2: goal = st.selectbox("Objetivo sesión:", list(SESSION_GOALS.keys()), index=2)
-    # NUEVO: Selector de Microciclo
     with col_s3: micro_sel = st.selectbox("Microciclo:", [f"Micro {i}" for i in range(1, 41)], index=0)
     with col_s4: 
         st.write("")
@@ -395,21 +393,11 @@ with tab_calc:
 
     st.divider()
     
+    # 1. Seleccionamos librería arriba
     presets = ["Seleccionar tarea frecuente"] + list(st.session_state.custom_task_library.keys())
-    c1, c2, c3 = st.columns([2, 2, 1])
+    c1, c2 = st.columns(2)
     with c1: t_nombre = st.text_input("Nombre tarea:", value="Tarea 1")
     with c2: sel_preset = st.selectbox("Librería:", presets)
-    with c3:
-        st.write("")
-        if st.button("⭐ Guardar en Librería", use_container_width=True):
-            st.session_state.custom_task_library[t_nombre] = {
-                "Nombre tarea": t_nombre, "Ejercicio": t_tipo, "Espacio": "m2" if 't_modo' in locals() and t_modo=="m2" else "campo",
-                "Largo": 't_largo' in locals() and t_largo or 30.0, "Ancho": 't_ancho' in locals() and t_ancho or 15.0, "m2": 't_m2' in locals() and t_m2 or 120.0,
-                "Jugadores": 't_jug' in locals() and t_jug or 10, "Duracion": 't_dur' in locals() and t_dur or 9.0, 
-                "Repeticiones": 't_rep' in locals() and t_rep or 8, "RPE": 't_rpe' in locals() and t_rpe or 5, "Ida_vuelta": 't_ida' in locals() and t_ida or True
-            }
-            with open("libreria_tareas.json", "w", encoding="utf-8") as f: json.dump(st.session_state.custom_task_library, f)
-            st.rerun()
 
     if sel_preset != "Seleccionar tarea frecuente":
         d = st.session_state.custom_task_library[sel_preset]
@@ -446,10 +434,26 @@ with tab_calc:
             t_m2, t_rep = 0, 0
 
     st.write("")
-    if st.button("Calcular y Añadir tarea", type="primary", use_container_width=True):
-        res = calcular_carga(t_jug, t_dur, t_tipo, t_modo, t_rpe, t_ida, t_m2, t_largo, t_ancho, t_rep, t_nombre)
-        st.session_state.session_tasks.append(res)
-        st.success(f"Tarea añadida. Total en sesión: {len(st.session_state.session_tasks)}")
+    # 2. BOTONES DE ACCIÓN AL FINAL (Problema solucionado)
+    col_btn_calc, col_btn_save = st.columns(2)
+    
+    with col_btn_calc:
+        if st.button("➕ Calcular y Añadir tarea", type="primary", use_container_width=True):
+            res = calcular_carga(t_jug, t_dur, t_tipo, t_modo, t_rpe, t_ida, t_m2, t_largo, t_ancho, t_rep, t_nombre)
+            st.session_state.session_tasks.append(res)
+            st.success(f"Tarea añadida. Total en sesión: {len(st.session_state.session_tasks)}")
+            
+    with col_btn_save:
+        if st.button("⭐ Guardar en Librería (Plantilla)", use_container_width=True):
+            st.session_state.custom_task_library[t_nombre] = {
+                "Nombre tarea": t_nombre, "Ejercicio": t_tipo, "Espacio": t_modo,
+                "Largo": float(t_largo), "Ancho": float(t_ancho), "m2": float(t_m2),
+                "Jugadores": int(t_jug), "Duracion": float(t_dur), 
+                "Repeticiones": int(t_rep), "RPE": int(t_rpe), "Ida_vuelta": bool(t_ida)
+            }
+            with open("libreria_tareas.json", "w", encoding="utf-8") as f: 
+                json.dump(st.session_state.custom_task_library, f)
+            st.success(f"Tarea '{t_nombre}' guardada en la librería.")
 
     st.divider()
     if st.session_state.session_tasks:
