@@ -29,7 +29,6 @@ if 'session_tasks' not in st.session_state:
 
 if 'saved_sessions' not in st.session_state:
     st.session_state.saved_sessions = []
-    # Intentar cargar histórico si existe
     try:
         with open("historico_sesiones.json", "r", encoding="utf-8") as f:
             st.session_state.saved_sessions = json.load(f)
@@ -38,7 +37,6 @@ if 'saved_sessions' not in st.session_state:
 
 if 'task_library' not in st.session_state:
     st.session_state.task_library = []
-    # Intentar cargar librería si existe
     try:
         with open("libreria_tareas.json", "r", encoding="utf-8") as f:
             st.session_state.task_library = json.load(f)
@@ -293,7 +291,6 @@ def calcular_carga(jugadores, duracion, tipo, ida_vuelta_continua=False, largo=N
 
     carga_total = dt * duracion
     clasificacion, semaforo = clasificar_carga(carga_total)
-
     interp = interpretacion_practica(carga_total, hsr_total, sprint_distance_total, acc_total, dec_total, tipo)
 
     return {
@@ -360,6 +357,19 @@ def build_current_session_microcycle_table(summary_row, day_label):
         })
     return pd.DataFrame(rows)
 
+def build_day_status_summary_html(analysis_df):
+    if analysis_df is None or analysis_df.empty: return ""
+    n_green = sum(analysis_df["Estado"].astype(str).str.contains("🟢"))
+    n_yellow = sum(analysis_df["Estado"].astype(str).str.contains("🟡"))
+    n_red = sum(analysis_df["Estado"].astype(str).str.contains("🔴"))
+    if n_red >= 2:
+        general, bg, border = "🔴 Sesión demasiado alejada del objetivo del día", "#fee2e2", "#fca5a5"
+    elif n_yellow >= 2:
+        general, bg, border = "🟡 Sesión parcialmente ajustada al día", "#fef9c3", "#fde68a"
+    else:
+        general, bg, border = "🟢 Sesión bien ajustada al día", "#dcfce7", "#86efac"
+    return f'<div style="margin:10px 0 14px 0;padding:14px;border:1px solid {border};border-radius:14px;background:{bg};"><div style="font-weight:700;margin-bottom:6px;">{general}</div><div style="font-size:13px;">Adecuadas: <strong>{n_green}</strong> &nbsp; | &nbsp; Bajas: <strong>{n_yellow}</strong> &nbsp; | &nbsp; Altas: <strong>{n_red}</strong></div></div>'
+
 def build_progress_bars(summary_row, day_label):
     ranges = MICROCYCLE_DAY_RANGES.get(day_label)
     if ranges is None: return "<div>No hay referencias.</div>"
@@ -378,17 +388,7 @@ def build_progress_bars(summary_row, day_label):
         if pct < min_v: color = "#eab308"
         elif pct > max_v: color = "#dc2626"
         else: color = "#16a34a"
-        blocks.append(f"""
-        <div style="margin-bottom:10px;">
-            <div style="display:flex;justify-content:space-between;font-size:13px;">
-                <span><strong>{label}</strong></span>
-                <span>{pct:.1f}% (objetivo {min_v}-{max_v}%)</span>
-            </div>
-            <div style="width:100%;background:#e5e7eb;border-radius:999px;height:12px;overflow:hidden;">
-                <div style="width:{width}%;background:{color};height:12px;"></div>
-            </div>
-        </div>
-        """)
+        blocks.append(f'<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:13px;"><span><strong>{label}</strong></span><span>{pct:.1f}% (objetivo {min_v}-{max_v}%)</span></div><div style="width:100%;background:#e5e7eb;border-radius:999px;height:12px;overflow:hidden;"><div style="width:{width}%;background:{color};height:12px;"></div></div></div>')
     return "<div style='padding:12px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;'>" + "".join(blocks) + "</div>"
 
 def generar_propuesta_ajuste(summary_row, day_label):
@@ -416,11 +416,7 @@ def generar_propuesta_ajuste(summary_row, day_label):
 def session_cards_html():
     data, resumen = obtener_resumen_sesion()
     if data is None:
-        return """
-        <div style="padding:14px;border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;">
-            No hay tareas en la sesión.
-        </div>
-        """
+        return '<div style="padding:14px;border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;">No hay tareas en la sesión.</div>'
     vals = {
         "Distancia total": resumen["Distancia total sesión (m)"].iloc[0],
         "HSR": resumen["HSR total sesión (m)"].iloc[0],
@@ -432,12 +428,7 @@ def session_cards_html():
     palette = ["#1d4ed8", "#0f766e", "#7c3aed", "#ea580c", "#dc2626", "#0891b2"]
     cards = ""
     for i, (k, v) in enumerate(vals.items()):
-        cards += f"""
-        <div style="background: linear-gradient(135deg, {palette[i]}, #0f172a); border-radius: 16px; padding: 16px; min-width: 150px; box-shadow: 0 4px 14px rgba(0,0,0,0.10); color: white; flex:1;">
-            <div style="font-size:12px;opacity:0.9;">{k}</div>
-            <div style="font-size:24px;font-weight:800;margin-top:4px;">{float(v):.1f}</div>
-        </div>
-        """
+        cards += f'<div style="background: linear-gradient(135deg, {palette[i]}, #0f172a); border-radius: 16px; padding: 16px; min-width: 150px; box-shadow: 0 4px 14px rgba(0,0,0,0.10); color: white; flex:1;"><div style="font-size:12px;opacity:0.9;">{k}</div><div style="font-size:24px;font-weight:800;margin-top:4px;">{float(v):.1f}</div></div>'
     return f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 16px 0;">{cards}</div>'
 
 # ============================================================
@@ -598,6 +589,21 @@ def generar_pdf_bytes(session_name, day_dropdown, week, meso):
                 plt.close(fig)
     return buf.getvalue()
 
+def compare_saved_sessions(name_a, name_b):
+    if not st.session_state.saved_sessions: return None
+    sess_a = next((s for s in st.session_state.saved_sessions if s["session_name"] == name_a), None)
+    sess_b = next((s for s in st.session_state.saved_sessions if s["session_name"] == name_b), None)
+    if sess_a is None or sess_b is None: return None
+    a_sum, b_sum = sess_a["summary"], sess_b["summary"]
+    keys = ["Distancia total sesión (m)", "Distancia sprint total sesión (m)", "Nº sprints totales sesión", "HSR total sesión (m)", "ACC total sesión (n)", "DEC total sesión (n)", "Carga total sesión (m)"]
+    rows = []
+    for key in keys:
+        a, b = float(a_sum.get(key, 0)), float(b_sum.get(key, 0))
+        diff = b - a
+        pct = ((diff / a) * 100) if a != 0 else None
+        rows.append({"Variable": key, name_a: round(a, 2), name_b: round(b, 2), "Diferencia": round(diff, 2), "% cambio": round(pct, 2) if pct is not None else None})
+    return pd.DataFrame(rows)
+
 # ============================================================
 # DATAFRAMES HISTÓRICOS Y AVANZADOS
 # ============================================================
@@ -690,13 +696,7 @@ def detect_consecutive_neuromuscular_alerts():
 # ============================================================
 # FRONTEND - UI
 # ============================================================
-st.markdown("""
-<div style="background: linear-gradient(90deg, #0f172a, #1e293b); color: #ffffff; padding: 18px 22px; border-radius: 16px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.18);">
-    <h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">
-        CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-    </h1>
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div style="background: linear-gradient(90deg, #0f172a, #1e293b); color: #ffffff; padding: 18px 22px; border-radius: 16px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.18);"><h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">CALCULADORA AVANZADA DE CARGAS EN FÚTBOL</h1></div>', unsafe_allow_html=True)
 
 tabs = st.tabs(["Calculadora", "Sesión", "Librería", "Microciclo", "Análisis", "Histórico", "Comparación", "Mesociclo", "Justificación"])
 
@@ -711,14 +711,7 @@ with tabs[0]:
     with col_m3: week_val = st.number_input("Semana:", min_value=1, max_value=20, value=1)
     with col_m4: day_val = st.selectbox("Día microciclo:", ["MD+1", "MD-4", "MD-3", "MD-2", "MD-1", "Partido"], index=2)
     
-    st.markdown(f"""
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 10px 0;">
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Tareas:</strong> {len(st.session_state.session_tasks)}</div>
-        <div style="background:#ecfeff;border:1px solid #a5f3fc;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Día:</strong> {day_val}</div>
-        <div style="background:#faf5ff;border:1px solid #d8b4fe;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Semana:</strong> {week_val}</div>
-        <div style="background:#fff7ed;border:1px solid #fdba74;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Mesociclo:</strong> {meso_name}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 10px 0;"><div style="background:#eff6ff;border:1px solid #bfdbfe;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Tareas:</strong> {len(st.session_state.session_tasks)}</div><div style="background:#ecfeff;border:1px solid #a5f3fc;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Día:</strong> {day_val}</div><div style="background:#faf5ff;border:1px solid #d8b4fe;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Semana:</strong> {week_val}</div><div style="background:#fff7ed;border:1px solid #fdba74;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Mesociclo:</strong> {meso_name}</div></div>', unsafe_allow_html=True)
 
     if st.button("💾 Guardar / Actualizar Sesión", type="primary"):
         data_tmp, res_tmp = obtener_resumen_sesion()
@@ -873,12 +866,7 @@ with tabs[3]:
         
         propuestas = generar_propuesta_ajuste(resumen.iloc[0], day_val)
         html_props = "".join([f"<li>{p}</li>" for p in propuestas])
-        st.markdown(f"""
-        <div style="margin-top:12px;padding:14px;border:1px solid #e5e7eb;border-radius:14px;background:#fafafa;">
-            <strong>Propuesta automática de ajuste</strong>
-            <ul style="margin:8px 0 0 18px;">{html_props}</ul>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div style="margin-top:12px;padding:14px;border:1px solid #e5e7eb;border-radius:14px;background:#fafafa;"><strong>Propuesta automática de ajuste</strong><ul style="margin:8px 0 0 18px;">{html_props}</ul></div>', unsafe_allow_html=True)
     else:
         st.info("Añade tareas para analizar el microciclo.")
 
@@ -981,140 +969,138 @@ with tabs[7]:
 # TAB 9: JUSTIFICACIÓN
 # ------------------------------------------------------------
 with tabs[8]:
-    JUSTIFICACION_HTML = """
-    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:22px;line-height:1.65;">
-        <h2 style="margin-top:0;color:#0f172a;">Justificación de la aplicación</h2>
+    JUSTIFICACION_HTML = """<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:22px;line-height:1.65;">
+<h2 style="margin-top:0;color:#0f172a;">Justificación de la aplicación</h2>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0;">
-            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px;">
-                <h3 style="margin-top:0;color:#1d4ed8;">1. ¿Para qué sirve?</h3>
-                <p style="margin-bottom:0;">La aplicación traduce el diseño de la tarea a una estimación de carga externa útil para planificar sesiones, comparar ejercicios, acumular cargas y valorar si la sesión se ajusta al día del microciclo.</p>
-            </div>
-            <div style="background:#ecfeff;border:1px solid #a5f3fc;border-radius:14px;padding:16px;">
-                <h3 style="margin-top:0;color:#0891b2;">2. ¿Qué calcula?</h3>
-                <p style="margin-bottom:0;">Distancia total, HSR, distancia sprint, nº de sprints, aceleraciones y deceleraciones, además de su distribución por tarea dentro de la sesión.</p>
-            </div>
-            <div style="background:#faf5ff;border:1px solid #d8b4fe;border-radius:14px;padding:16px;">
-                <h3 style="margin-top:0;color:#7e22ce;">3. ¿Cómo lo hace?</h3>
-                <p style="margin-bottom:0;">Combina ecuaciones base dependientes del espacio por jugador con factores correctores específicos de cada ejercicio y ajustes de longitudinalidad, continuidad y suelos mínimos.</p>
-            </div>
-            <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:14px;padding:16px;">
-                <h3 style="margin-top:0;color:#ea580c;">4. ¿Cómo se interpreta?</h3>
-                <p style="margin-bottom:0;">La sesión se compara con el partido como referencia del 100% y se valora si la exposición es adecuada según el momento del microciclo.</p>
-            </div>
-        </div>
-
-        <h3 style="color:#0f172a;">1) Base del modelo: el espacio por jugador</h3>
-        <p>La variable estructural de partida es el <strong>ApP (área por jugador)</strong>, ya que resume la relación entre espacio disponible y número de participantes. A partir de este valor se estiman las principales métricas locomotoras y mecánicas del ejercicio.</p>
-
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:16px;">
-            <strong>Fórmula base</strong>
-            <div style="margin-top:10px;font-family:monospace;font-size:16px;background:#ffffff;padding:12px;border-radius:10px;border:1px solid #e2e8f0;">
-                ApP = (largo × ancho) / nº jugadores
-            </div>
-        </div>
-
-        <h3 style="color:#0f172a;">2) Fórmulas de cálculo por métrica</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin:16px 0;">
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Distancia total por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">DT/min = 19.243 × ln(ApP) − 5.029</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Distancia sprint por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Sprint/min = 0.001 × ApP − 0.046</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Distancia en aceleración por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Dist ACC/min = 1.321 × ln(ApP) − 0.629</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Nº aceleraciones por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">ACC/min = 0.212 × ln(ApP) − 0.23</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Distancia en deceleración por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Dist DEC/min = 1.157 × ln(ApP) − 0.418</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Nº deceleraciones por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">DEC/min = 0.104 × ln(ApP) − 0.096</div>
-            </div>
-        </div>
-
-        <h3 style="color:#0f172a;">3) Explicación del HSR</h3>
-        <p>El <strong>HSR</strong> no se estima con una única ecuación lineal, sino mediante un modelo práctico por tramos en función del ApP, corregido después por el tipo de ejercicio y por la estructura espacial y temporal de la tarea. Esto permite representar mejor que no todas las tareas con el mismo espacio generan la misma exposición a alta velocidad.</p>
-
-        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
-            <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>ApP &lt; 100</strong> → HSR base = 0.5</div>
-            <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>100–149.99</strong> → HSR base = 2.0</div>
-            <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>150–181.99</strong> → HSR base = 4.0</div>
-            <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>182–224.99</strong> → HSR base = 6.0</div>
-            <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>≥ 225</strong> → HSR base = 8.0</div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:18px;">
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>HSR corregido por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">HSR/min = max(HSR_base × factor_hsr × factor_long × factor_cont, suelo_hsr)</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Sprint corregido por minuto</strong>
-                <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Sprint/min = max(Sprint_base × factor_sprint × factor_long × factor_cont, suelo_sprint)</div>
-            </div>
-        </div>
-
-        <h3 style="color:#0f172a;">4) Factores de corrección por tipo de ejercicio</h3>
-        <p>Cada tipo de tarea aplica factores específicos sobre HSR, sprint, aceleraciones y deceleraciones. Estos factores permiten ajustar la estimación a la naturaleza del ejercicio. Por ejemplo, las transiciones y oleadas multiplican especialmente HSR y sprint, mientras que rondos o juegos de posición concentran más acciones mecánicas cortas.</p>
-
-        <div style="overflow-x:auto;margin-bottom:18px;">
-            <table style="width:100%;border-collapse:collapse;font-size:14px;text-align:center;">
-                <thead>
-                    <tr style="background:#0f172a;color:#ffffff;">
-                        <th style="padding:10px;border:1px solid #cbd5e1;">Ejercicio</th>
-                        <th style="padding:10px;border:1px solid #cbd5e1;">Factor HSR</th>
-                        <th style="padding:10px;border:1px solid #cbd5e1;">Factor Sprint</th>
-                        <th style="padding:10px;border:1px solid #cbd5e1;">Factor ACC</th>
-                        <th style="padding:10px;border:1px solid #cbd5e1;">Factor DEC</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td style="padding:9px;border:1px solid #e2e8f0;">Juego de posición</td><td style="padding:9px;border:1px solid #e2e8f0;">0.55</td><td style="padding:9px;border:1px solid #e2e8f0;">0.50</td><td style="padding:9px;border:1px solid #e2e8f0;">0.80</td><td style="padding:9px;border:1px solid #e2e8f0;">0.80</td></tr>
-                    <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Rondo</td><td style="padding:9px;border:1px solid #e2e8f0;">0.50</td><td style="padding:9px;border:1px solid #e2e8f0;">0.45</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td></tr>
-                    <tr><td style="padding:9px;border:1px solid #e2e8f0;">Posesión</td><td style="padding:9px;border:1px solid #e2e8f0;">0.85</td><td style="padding:9px;border:1px solid #e2e8f0;">0.80</td><td style="padding:9px;border:1px solid #e2e8f0;">1.05</td><td style="padding:9px;border:1px solid #e2e8f0;">1.05</td></tr>
-                    <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Transición/Oleadas</td><td style="padding:9px;border:1px solid #e2e8f0;">2.80</td><td style="padding:9px;border:1px solid #e2e8f0;">3.20</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td></tr>
-                    <tr><td style="padding:9px;border:1px solid #e2e8f0;">Box to Box</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td></tr>
-                    <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Partido condicionado</td><td style="padding:9px;border:1px solid #e2e8f0;">1.20</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td></tr>
-                    <tr><td style="padding:9px;border:1px solid #e2e8f0;">Partido</td><td style="padding:9px;border:1px solid #e2e8f0;">0.70</td><td style="padding:9px;border:1px solid #e2e8f0;">6.15</td><td style="padding:9px;border:1px solid #e2e8f0;">0.95</td><td style="padding:9px;border:1px solid #e2e8f0;">0.95</td></tr>
-                    <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Otro</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <h3 style="color:#0f172a;">5) Factores estructurales adicionales</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0;">
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Factor longitudinal</strong>
-                <p style="margin:8px 0 0 0;">Corrige tareas largas y estrechas, especialmente en transición, partido y partido condicionado, porque favorecen más metros útiles de carrera y mayor probabilidad de HSR/sprint.</p>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Factor continuidad</strong>
-                <p style="margin:8px 0 0 0;">Aumenta la estimación cuando la tarea tiene una lógica continua de ida y vuelta, especialmente en transiciones/oleadas.</p>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
-                <strong>Suelos mínimos</strong>
-                <p style="margin:8px 0 0 0;">En algunas tareas de transición se aplica un suelo mínimo de HSR y sprint por minuto para evitar infraestimar esfuerzos que en la práctica siempre aparecen.</p>
-            </div>
-        </div>
-
-        <h3 style="color:#0f172a;">6) Box to Box</h3>
-        <p>El ejercicio box to box sigue una lógica específica distinta al resto del modelo: parte de la distancia de carrera y del número de repeticiones, y aplica proporciones diferentes para estimar HSR, sprint y acciones ACC/DEC según la longitud del esfuerzo.</p>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:18px;">
-            <div style="font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Distancia total = distancia_carrera × repeticiones</div>
-        </div>
-
-        <h3 style="color:#0f172a;">7) Integración en el microciclo</h3>
-        <p>La calculadora permite valorar si la carga total de la sesión es coherente con el día del microciclo en el que se ubica. De esta forma, no solo estima carga por tarea, sino que también permite interpretar si el contenido de la sesión está alineado con las exigencias esperadas de MD+1, MD-4, MD-3, MD-2 o MD-1.</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0;">
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px;">
+        <h3 style="margin-top:0;color:#1d4ed8;">1. ¿Para qué sirve?</h3>
+        <p style="margin-bottom:0;">La aplicación traduce el diseño de la tarea a una estimación de carga externa útil para planificar sesiones, comparar ejercicios, acumular cargas y valorar si la sesión se ajusta al día del microciclo.</p>
     </div>
-    """
+    <div style="background:#ecfeff;border:1px solid #a5f3fc;border-radius:14px;padding:16px;">
+        <h3 style="margin-top:0;color:#0891b2;">2. ¿Qué calcula?</h3>
+        <p style="margin-bottom:0;">Distancia total, HSR, distancia sprint, nº de sprints, aceleraciones y deceleraciones, además de su distribución por tarea dentro de la sesión.</p>
+    </div>
+    <div style="background:#faf5ff;border:1px solid #d8b4fe;border-radius:14px;padding:16px;">
+        <h3 style="margin-top:0;color:#7e22ce;">3. ¿Cómo lo hace?</h3>
+        <p style="margin-bottom:0;">Combina ecuaciones base dependientes del espacio por jugador con factores correctores específicos de cada ejercicio y ajustes de longitudinalidad, continuidad y suelos mínimos.</p>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:14px;padding:16px;">
+        <h3 style="margin-top:0;color:#ea580c;">4. ¿Cómo se interpreta?</h3>
+        <p style="margin-bottom:0;">La sesión se compara con el partido como referencia del 100% y se valora si la exposición es adecuada según el momento del microciclo.</p>
+    </div>
+</div>
+
+<h3 style="color:#0f172a;">1) Base del modelo: el espacio por jugador</h3>
+<p>La variable estructural de partida es el <strong>ApP (área por jugador)</strong>, ya que resume la relación entre espacio disponible y número de participantes. A partir de este valor se estiman las principales métricas locomotoras y mecánicas del ejercicio.</p>
+
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:16px;">
+    <strong>Fórmula base</strong>
+    <div style="margin-top:10px;font-family:monospace;font-size:16px;background:#ffffff;padding:12px;border-radius:10px;border:1px solid #e2e8f0;">
+        ApP = (largo × ancho) / nº jugadores
+    </div>
+</div>
+
+<h3 style="color:#0f172a;">2) Fórmulas de cálculo por métrica</h3>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin:16px 0;">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Distancia total por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">DT/min = 19.243 × ln(ApP) − 5.029</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Distancia sprint por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Sprint/min = 0.001 × ApP − 0.046</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Distancia en aceleración por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Dist ACC/min = 1.321 × ln(ApP) − 0.629</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Nº aceleraciones por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">ACC/min = 0.212 × ln(ApP) − 0.23</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Distancia en deceleración por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Dist DEC/min = 1.157 × ln(ApP) − 0.418</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Nº deceleraciones por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">DEC/min = 0.104 × ln(ApP) − 0.096</div>
+    </div>
+</div>
+
+<h3 style="color:#0f172a;">3) Explicación del HSR</h3>
+<p>El <strong>HSR</strong> no se estima con una única ecuación lineal, sino mediante un modelo práctico por tramos en función del ApP, corregido después por el tipo de ejercicio y por la estructura espacial y temporal de la tarea. Esto permite representar mejor que no todas las tareas con el mismo espacio generan la misma exposición a alta velocidad.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>ApP &lt; 100</strong> → HSR base = 0.5</div>
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>100–149.99</strong> → HSR base = 2.0</div>
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>150–181.99</strong> → HSR base = 4.0</div>
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>182–224.99</strong> → HSR base = 6.0</div>
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:10px 14px;"><strong>≥ 225</strong> → HSR base = 8.0</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:18px;">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>HSR corregido por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">HSR/min = max(HSR_base × factor_hsr × factor_long × factor_cont, suelo_hsr)</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Sprint corregido por minuto</strong>
+        <div style="margin-top:8px;font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Sprint/min = max(Sprint_base × factor_sprint × factor_long × factor_cont, suelo_sprint)</div>
+    </div>
+</div>
+
+<h3 style="color:#0f172a;">4) Factores de corrección por tipo de ejercicio</h3>
+<p>Cada tipo de tarea aplica factores específicos sobre HSR, sprint, aceleraciones y deceleraciones. Estos factores permiten ajustar la estimación a la naturaleza del ejercicio. Por ejemplo, las transiciones y oleadas multiplican especialmente HSR y sprint, mientras que rondos o juegos de posición concentran más acciones mecánicas cortas.</p>
+
+<div style="overflow-x:auto;margin-bottom:18px;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;text-align:center;">
+        <thead>
+            <tr style="background:#0f172a;color:#ffffff;">
+                <th style="padding:10px;border:1px solid #cbd5e1;">Ejercicio</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Factor HSR</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Factor Sprint</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Factor ACC</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Factor DEC</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;">Juego de posición</td><td style="padding:9px;border:1px solid #e2e8f0;">0.55</td><td style="padding:9px;border:1px solid #e2e8f0;">0.50</td><td style="padding:9px;border:1px solid #e2e8f0;">0.80</td><td style="padding:9px;border:1px solid #e2e8f0;">0.80</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Rondo</td><td style="padding:9px;border:1px solid #e2e8f0;">0.50</td><td style="padding:9px;border:1px solid #e2e8f0;">0.45</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;">Posesión</td><td style="padding:9px;border:1px solid #e2e8f0;">0.85</td><td style="padding:9px;border:1px solid #e2e8f0;">0.80</td><td style="padding:9px;border:1px solid #e2e8f0;">1.05</td><td style="padding:9px;border:1px solid #e2e8f0;">1.05</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Transición/Oleadas</td><td style="padding:9px;border:1px solid #e2e8f0;">2.80</td><td style="padding:9px;border:1px solid #e2e8f0;">3.20</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;">Box to Box</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Partido condicionado</td><td style="padding:9px;border:1px solid #e2e8f0;">1.20</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td><td style="padding:9px;border:1px solid #e2e8f0;">1.15</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;">Partido</td><td style="padding:9px;border:1px solid #e2e8f0;">0.70</td><td style="padding:9px;border:1px solid #e2e8f0;">6.15</td><td style="padding:9px;border:1px solid #e2e8f0;">0.95</td><td style="padding:9px;border:1px solid #e2e8f0;">0.95</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Otro</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td><td style="padding:9px;border:1px solid #e2e8f0;">1.00</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<h3 style="color:#0f172a;">5) Factores estructurales adicionales</h3>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0;">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Factor longitudinal</strong>
+        <p style="margin:8px 0 0 0;">Corrige tareas largas y estrechas, especialmente en transición, partido y partido condicionado, porque favorecen más metros útiles de carrera y mayor probabilidad de HSR/sprint.</p>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Factor continuidad</strong>
+        <p style="margin:8px 0 0 0;">Aumenta la estimación cuando la tarea tiene una lógica continua de ida y vuelta, especialmente en transiciones/oleadas.</p>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <strong>Suelos mínimos</strong>
+        <p style="margin:8px 0 0 0;">En algunas tareas de transición se aplica un suelo mínimo de HSR y sprint por minuto para evitar infraestimar esfuerzos que en la práctica siempre aparecen.</p>
+    </div>
+</div>
+
+<h3 style="color:#0f172a;">6) Box to Box</h3>
+<p>El ejercicio box to box sigue una lógica específica distinta al resto del modelo: parte de la distancia de carrera y del número de repeticiones, y aplica proporciones diferentes para estimar HSR, sprint y acciones ACC/DEC según la longitud del esfuerzo.</p>
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:18px;">
+    <div style="font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Distancia total = distancia_carrera × repeticiones</div>
+</div>
+
+<h3 style="color:#0f172a;">7) Integración en el microciclo</h3>
+<p>La calculadora permite valorar si la carga total de la sesión es coherente con el día del microciclo en el que se ubica. De esta forma, no solo estima carga por tarea, sino que también permite interpretar si el contenido de la sesión está alineado con las exigencias esperadas de MD+1, MD-4, MD-3, MD-2 o MD-1.</p>
+</div>"""
     st.markdown(JUSTIFICACION_HTML, unsafe_allow_html=True)
