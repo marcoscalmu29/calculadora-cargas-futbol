@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión Fiel Google Colab Pro
+# Streamlit App - Versión Fiel Google Colab Pro + MULTIUSUARIO
 # ============================================================
 
 import math
@@ -16,13 +16,65 @@ from matplotlib.backends.backend_pdf import PdfPages
 import streamlit as st
 
 # ============================================================
-# CONFIGURACIÓN DE STREAMLIT
+# CONFIGURACIÓN DE STREAMLIT Y USUARIOS
 # ============================================================
 st.set_page_config(page_title="Calculadora Cargas Fútbol", layout="wide", page_icon="⚽")
 plt.rcParams["figure.figsize"] = (11, 5)
 
+# ------------------------------------------------------------
+# DICCIONARIO DE USUARIOS (Añade o cambia los que quieras)
+# ------------------------------------------------------------
+USUARIOS_PERMITIDOS = {
+    "MARCOS": "123",
+    "ALEX": "456",
+    "JAVI": "hyrox"
+}
+
 # ============================================================
-# ESTADO GLOBAL
+# SISTEMA DE LOGIN (PANTALLA DE BLOQUEO)
+# ============================================================
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+
+if not st.session_state.logged_in:
+    st.markdown('<div style="background: linear-gradient(90deg, #0f172a, #1e293b); color: #ffffff; padding: 18px 22px; border-radius: 16px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.18);"><h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">⚽ PERFORMANCE HUB</h1><p style="margin:5px 0 0 0;">Control de acceso</p></div>', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        st.markdown("### Iniciar Sesión")
+        user_input = st.text_input("👤 Usuario")
+        pass_input = st.text_input("🔑 Contraseña", type="password")
+        
+        if st.button("Entrar al sistema", type="primary", use_container_width=True):
+            if user_input in USUARIOS_PERMITIDOS and USUARIOS_PERMITIDOS[user_input] == pass_input:
+                st.session_state.logged_in = True
+                st.session_state.username = user_input
+                # Borramos la memoria temporal para cargar los datos limpios del nuevo usuario
+                for key in ['session_tasks', 'saved_sessions', 'task_library']:
+                    if key in st.session_state: del st.session_state[key]
+                st.rerun()
+            else:
+                st.error("❌ Usuario o contraseña incorrectos")
+    st.stop() # Si no estás logueado, el código se para aquí y no carga la app.
+
+# ============================================================
+# RUTAS DE ARCHIVOS DINÁMICAS POR USUARIO
+# ============================================================
+USUARIO_ACTUAL = st.session_state.username
+ARCHIVO_HISTORICO = f"historico_{USUARIO_ACTUAL}.json"
+ARCHIVO_LIBRERIA = f"libreria_{USUARIO_ACTUAL}.json"
+
+with st.sidebar:
+    st.markdown(f"### 👤 Perfil activo:\n**{USUARIO_ACTUAL.upper()}**")
+    if st.button("🚪 Cerrar sesión", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.rerun()
+    st.divider()
+
+# ============================================================
+# ESTADO GLOBAL (CARGA DE DATOS DEL USUARIO)
 # ============================================================
 if 'session_tasks' not in st.session_state:
     st.session_state.session_tasks = []
@@ -30,7 +82,7 @@ if 'session_tasks' not in st.session_state:
 if 'saved_sessions' not in st.session_state:
     st.session_state.saved_sessions = []
     try:
-        with open("historico_sesiones.json", "r", encoding="utf-8") as f:
+        with open(ARCHIVO_HISTORICO, "r", encoding="utf-8") as f:
             st.session_state.saved_sessions = json.load(f)
     except:
         pass
@@ -38,7 +90,7 @@ if 'saved_sessions' not in st.session_state:
 if 'task_library' not in st.session_state:
     st.session_state.task_library = []
     try:
-        with open("libreria_tareas.json", "r", encoding="utf-8") as f:
+        with open(ARCHIVO_LIBRERIA, "r", encoding="utf-8") as f:
             st.session_state.task_library = json.load(f)
     except:
         pass
@@ -720,7 +772,7 @@ with tabs[0]:
             idx = next((i for i, s in enumerate(st.session_state.saved_sessions) if s["session_name"] == sess_name), None)
             if idx is not None: st.session_state.saved_sessions[idx] = payload
             else: st.session_state.saved_sessions.append(payload)
-            with open("historico_sesiones.json", "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
+            with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
             st.success(f"Sesión '{sess_name}' guardada.")
         else: st.error("No hay tareas para guardar.")
 
@@ -770,7 +822,7 @@ with tabs[0]:
             idx = next((i for i, t in enumerate(st.session_state.task_library) if t["Nombre tarea"] == t_name), None)
             if idx is not None: st.session_state.task_library[idx] = res
             else: st.session_state.task_library.append(res)
-            with open("libreria_tareas.json", "w", encoding="utf-8") as f: json.dump(st.session_state.task_library, f, ensure_ascii=False, indent=2)
+            with open(ARCHIVO_LIBRERIA, "w", encoding="utf-8") as f: json.dump(st.session_state.task_library, f, ensure_ascii=False, indent=2)
             st.success("Guardado en librería.")
 
     st.divider()
@@ -843,11 +895,11 @@ with tabs[2]:
         sel_del = st.selectbox("Eliminar tarea de la librería:", [t["Nombre tarea"] for t in st.session_state.task_library])
         if st.button("Eliminar de librería", type="primary"):
             st.session_state.task_library = [t for t in st.session_state.task_library if t["Nombre tarea"] != sel_del]
-            with open("libreria_tareas.json", "w", encoding="utf-8") as f: json.dump(st.session_state.task_library, f, ensure_ascii=False, indent=2)
+            with open(ARCHIVO_LIBRERIA, "w", encoding="utf-8") as f: json.dump(st.session_state.task_library, f, ensure_ascii=False, indent=2)
             st.rerun()
 
         json_lib = json.dumps(st.session_state.task_library, ensure_ascii=False, indent=2).encode('utf-8')
-        st.download_button("Exportar Librería JSON", json_lib, "libreria.json", "application/json")
+        st.download_button("Exportar Librería JSON", json_lib, f"libreria_{USUARIO_ACTUAL}.json", "application/json")
     else:
         st.info("La librería está vacía.")
 
@@ -913,12 +965,12 @@ with tabs[5]:
         st.dataframe(hist_df, use_container_width=True)
         
         json_hist = json.dumps(st.session_state.saved_sessions, ensure_ascii=False, indent=2).encode('utf-8')
-        st.download_button("📥 Exportar Backup Completo (JSON)", json_hist, "historico.json", "application/json")
+        st.download_button("📥 Exportar Backup Completo (JSON)", json_hist, f"historico_{USUARIO_ACTUAL}.json", "application/json")
         
         with st.expander("⚠️ Zona de peligro"):
             if st.button("🚨 Borrar todo el histórico"):
                 st.session_state.saved_sessions = []
-                with open("historico_sesiones.json", "w", encoding="utf-8") as f: json.dump([], f)
+                with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump([], f)
                 st.rerun()
     else:
         st.info("No hay sesiones guardadas.")
