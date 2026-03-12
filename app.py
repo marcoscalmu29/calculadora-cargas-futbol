@@ -350,10 +350,13 @@ def calcular_carga(jugadores, duracion, tipo, ida_vuelta_continua=False, largo=N
 # ============================================================
 # RESUMEN Y ANÁLISIS DE SESIÓN
 # ============================================================
-def obtener_resumen_sesion():
-    if not st.session_state.session_tasks:
-        return None, None
-    df = pd.DataFrame(st.session_state.session_tasks)
+def obtener_resumen_sesion(tareas_df=None):
+    if tareas_df is None:
+        if not st.session_state.session_tasks: return None, None
+        df = pd.DataFrame(st.session_state.session_tasks)
+    else:
+        df = tareas_df
+        
     resumen = pd.DataFrame({
         "Número de tareas": [len(df)],
         "Duración total (min)": [round(df["Duración (min)"].fillna(0).sum(), 2)],
@@ -770,7 +773,7 @@ with tabs[0]:
             else: st.error("No hay tareas para guardar.")
             
     with c_save2:
-        if st.button("💾 Guardar y Empezar Nueva Sesión", type="secondary", use_container_width=True):
+        if st.button("💾 Guardar y Crear Nueva Sesión (Limpiar Tareas)", type="secondary", use_container_width=True):
             data_tmp, res_tmp = obtener_resumen_sesion()
             if data_tmp is not None:
                 payload = {"session_name": sess_name, "microcycle_day": day_val, "week": week_val, "mesocycle": meso_name, "summary": res_tmp.iloc[0].to_dict(), "tasks": data_tmp.to_dict("records"), "updated_at": current_timestamp()}
@@ -779,7 +782,7 @@ with tabs[0]:
                 else: st.session_state.saved_sessions.append(payload)
                 with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
                 st.session_state.session_tasks = []
-                st.success(f"Sesión '{sess_name}' guardada correctamente. Calculadora reiniciada para nueva sesión.")
+                st.success(f"Sesión '{sess_name}' guardada en el histórico. Calculadora lista para un nuevo día.")
                 st.rerun()
             else: st.error("No hay tareas para guardar.")
 
@@ -843,7 +846,7 @@ with tabs[0]:
                 st.session_state.session_tasks.pop(idx_edit)
                 st.rerun()
         with ce2:
-            if st.button("🚨 Reiniciar sesión (Borrar todas)", type="secondary", use_container_width=True):
+            if st.button("🚨 Reiniciar sesión actual", type="secondary", use_container_width=True):
                 st.session_state.session_tasks = []
                 st.rerun()
 
@@ -1260,7 +1263,7 @@ with tabs[8]:
     </table>
 </div>
 
-<h3 style="color:#0f172a;">6) Factores estructurales adicionales</h3>
+<h3 style="color:#0f172a;">Factores estructurales adicionales</h3>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0;">
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
         <strong>Factor longitudinal</strong>
@@ -1274,6 +1277,35 @@ with tabs[8]:
         <strong>Suelos mínimos</strong>
         <p style="margin:8px 0 0 0;">En algunas tareas de transición se aplica un suelo mínimo de HSR y sprint por minuto para evitar infraestimar esfuerzos que en la práctica siempre aparecen.</p>
     </div>
+</div>
+
+<h3 style="color:#0f172a;">Lógica Box to Box</h3>
+<p>El ejercicio box to box sigue una lógica específica distinta al resto del modelo: parte de la distancia de carrera y del número de repeticiones, y aplica proporciones diferentes para estimar HSR, sprint y acciones ACC/DEC según la longitud del esfuerzo.</p>
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:18px;">
+    <div style="font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Distancia total = distancia_carrera × repeticiones</div>
+</div>
+
+<h3 style="color:#0f172a;">6) Objetivos diarios del microciclo</h3>
+<div style="overflow-x:auto;margin-bottom:18px;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;text-align:center;">
+        <thead>
+            <tr style="background:#0f172a;color:#ffffff;">
+                <th style="padding:10px;border:1px solid #cbd5e1;text-align:left;">Día</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Distancia total</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Sprint</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">HSR</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">ACC</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">DEC</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">MD-4</td><td style="padding:9px;border:1px solid #e2e8f0;">50–60%</td><td style="padding:9px;border:1px solid #e2e8f0;">5–10%</td><td style="padding:9px;border:1px solid #e2e8f0;">10–20%</td><td style="padding:9px;border:1px solid #e2e8f0;">75–85%</td><td style="padding:9px;border:1px solid #e2e8f0;">75–85%</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">MD-3</td><td style="padding:9px;border:1px solid #e2e8f0;">65–75%</td><td style="padding:9px;border:1px solid #e2e8f0;">65–75%</td><td style="padding:9px;border:1px solid #e2e8f0;">65–80%</td><td style="padding:9px;border:1px solid #e2e8f0;">40–50%</td><td style="padding:9px;border:1px solid #e2e8f0;">40–50%</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">MD-2</td><td style="padding:9px;border:1px solid #e2e8f0;">35–45%</td><td style="padding:9px;border:1px solid #e2e8f0;">5–15%</td><td style="padding:9px;border:1px solid #e2e8f0;">10–15%</td><td style="padding:9px;border:1px solid #e2e8f0;">20–30%</td><td style="padding:9px;border:1px solid #e2e8f0;">20–30%</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">MD-1</td><td style="padding:9px;border:1px solid #e2e8f0;">20–30%</td><td style="padding:9px;border:1px solid #e2e8f0;">0–5%</td><td style="padding:9px;border:1px solid #e2e8f0;">5–10%</td><td style="padding:9px;border:1px solid #e2e8f0;">10–20%</td><td style="padding:9px;border:1px solid #e2e8f0;">10–20%</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">MD+1 (suplente)</td><td style="padding:9px;border:1px solid #e2e8f0;">60–70%</td><td style="padding:9px;border:1px solid #e2e8f0;">70–80%</td><td style="padding:9px;border:1px solid #e2e8f0;">80–90%</td><td style="padding:9px;border:1px solid #e2e8f0;">60–80%</td><td style="padding:9px;border:1px solid #e2e8f0;">60–80%</td></tr>
+        </tbody>
+    </table>
 </div>
 
 <h3 style="color:#0f172a;">7) Objetivos semanales</h3>
