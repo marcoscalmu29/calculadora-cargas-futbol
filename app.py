@@ -918,23 +918,62 @@ with tabs[2]:
 # ------------------------------------------------------------
 with tabs[3]:
     st.header("Ajuste al Microciclo")
-    tab_mic_sesion, tab_mic_semana = st.tabs(["🎯 Análisis Sesión Actual", "📅 Análisis Semana (Acumulado)"])
+    tab_mic_sesion, tab_mic_semana = st.tabs(["🎯 Análisis Sesión", "📅 Análisis Semana (Acumulado)"])
 
     with tab_mic_sesion:
-        st.subheader(f"Sesión Actual vs {day_val}")
-        data_m, resumen_m = obtener_resumen_sesion()
-        if data_m is not None:
-            analysis_df = build_current_session_microcycle_table(resumen_m.iloc[0], day_val)
+        st.subheader("Análisis de Sesión vs Día del Microciclo")
+        
+        origen_analisis = st.radio("Selecciona la sesión a analizar:", ["Sesión Actual (en edición)", "Sesión Guardada (Histórico)"], horizontal=True)
+        
+        resumen_analisis = None
+        dia_analisis = None
+        
+        if origen_analisis == "Sesión Actual (en edición)":
+            data_m, resumen_m = obtener_resumen_sesion()
+            if data_m is not None and not data_m.empty:
+                resumen_analisis = resumen_m.iloc[0]
+                dia_analisis = day_val
+            else:
+                st.info("Añade tareas en la calculadora para analizar la sesión actual.")
+        else:
+            if st.session_state.saved_sessions:
+                cM, cW, cS = st.columns(3)
+                mesos_disp = list(dict.fromkeys([s.get("mesocycle", "Mesociclo 1") for s in st.session_state.saved_sessions]))
+                with cM:
+                    sel_meso = st.selectbox("Filtro: Mesociclo", mesos_disp)
+                
+                semanas_disp = list(dict.fromkeys([s.get("week", 1) for s in st.session_state.saved_sessions if s.get("mesocycle", "Mesociclo 1") == sel_meso]))
+                with cW:
+                    sel_week = st.selectbox("Filtro: Semana", semanas_disp)
+                    
+                sesiones_disp = [s for s in st.session_state.saved_sessions if s.get("mesocycle", "Mesociclo 1") == sel_meso and s.get("week", 1) == sel_week]
+                nombres_ses = [s["session_name"] for s in sesiones_disp]
+                
+                with cS:
+                    if nombres_ses:
+                        sel_sess_name = st.selectbox("Sesión a analizar", nombres_ses)
+                    else:
+                        st.warning("No hay sesiones en esta semana.")
+                        sel_sess_name = None
+                        
+                if sel_sess_name:
+                    sess_obj = next(s for s in sesiones_disp if s["session_name"] == sel_sess_name)
+                    resumen_analisis = pd.Series(sess_obj["summary"])
+                    dia_analisis = sess_obj["microcycle_day"]
+            else:
+                st.info("No hay sesiones guardadas en el histórico.")
+
+        if resumen_analisis is not None and dia_analisis is not None:
+            st.markdown(f"**Día de referencia evaluado:** {dia_analisis}")
+            analysis_df = build_current_session_microcycle_table(resumen_analisis, dia_analisis)
             st.markdown(build_day_status_summary_html(analysis_df), unsafe_allow_html=True)
-            st.markdown(build_progress_bars(resumen_m.iloc[0], day_val), unsafe_allow_html=True)
+            st.markdown(build_progress_bars(resumen_analisis, dia_analisis), unsafe_allow_html=True)
             
             st.dataframe(analysis_df.style.apply(lambda row: [state_color(row["Estado"]) for _ in row], axis=1), use_container_width=True)
             
-            propuestas = generar_propuesta_ajuste(resumen_m.iloc[0], day_val)
+            propuestas = generar_propuesta_ajuste(resumen_analisis, dia_analisis)
             html_props = "".join([f"<li>{p}</li>" for p in propuestas])
             st.markdown(f'<div style="margin-top:12px;padding:14px;border:1px solid #e5e7eb;border-radius:14px;background:#fafafa;"><strong>Propuesta automática de ajuste</strong><ul style="margin:8px 0 0 18px;">{html_props}</ul></div>', unsafe_allow_html=True)
-        else:
-            st.info("Añade tareas para analizar el microciclo actual.")
 
     with tab_mic_semana:
         st.subheader(f"Análisis de la Semana {week_val} ({meso_name})")
