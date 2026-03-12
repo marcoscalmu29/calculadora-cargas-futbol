@@ -350,10 +350,13 @@ def calcular_carga(jugadores, duracion, tipo, ida_vuelta_continua=False, largo=N
 # ============================================================
 # RESUMEN Y ANÁLISIS DE SESIÓN
 # ============================================================
-def obtener_resumen_sesion():
-    if not st.session_state.session_tasks:
-        return None, None
-    df = pd.DataFrame(st.session_state.session_tasks)
+def obtener_resumen_sesion(tareas_df=None):
+    if tareas_df is None:
+        if not st.session_state.session_tasks: return None, None
+        df = pd.DataFrame(st.session_state.session_tasks)
+    else:
+        df = tareas_df
+        
     resumen = pd.DataFrame({
         "Número de tareas": [len(df)],
         "Duración total (min)": [round(df["Duración (min)"].fillna(0).sum(), 2)],
@@ -450,9 +453,10 @@ def generar_propuesta_ajuste(summary_row, day_label):
     if not propuestas: propuestas.append("La sesión está bien ajustada al día del microciclo seleccionado.")
     return propuestas
 
-def session_cards_html():
-    data, resumen = obtener_resumen_sesion()
-    if data is None:
+def session_cards_html(resumen=None):
+    if resumen is None:
+        _, resumen = obtener_resumen_sesion()
+    if resumen is None or resumen.empty:
         return '<div style="padding:14px;border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;">No hay tareas en la sesión.</div>'
     vals = {
         "Distancia total": resumen["Distancia total sesión (m)"].iloc[0],
@@ -471,8 +475,8 @@ def session_cards_html():
 # ============================================================
 # GRÁFICOS MATPLOTLIB
 # ============================================================
-def make_fig_resumen_global():
-    data, resumen = obtener_resumen_sesion()
+def make_fig_resumen_global(data=None, resumen=None):
+    if data is None or resumen is None: data, resumen = obtener_resumen_sesion()
     if data is None: return None
     vals = {"Distancia total": resumen["Distancia total sesión (m)"].iloc[0], "Distancia sprint": resumen["Distancia sprint total sesión (m)"].iloc[0], "Nº sprints": resumen["Nº sprints totales sesión"].iloc[0], "HSR": resumen["HSR total sesión (m)"].iloc[0], "ACC": resumen["ACC total sesión (n)"].iloc[0], "DEC": resumen["DEC total sesión (n)"].iloc[0]}
     fig, ax = plt.subplots(figsize=(12.5, 5))
@@ -487,9 +491,9 @@ def make_fig_resumen_global():
         ax.text(x + 0.07, 0.38, f"{float(value):.1f}", ha="center", va="center", transform=ax.transAxes, fontsize=16, color="white", fontweight="bold")
     return fig
 
-def make_fig_carga():
-    data, _ = obtener_resumen_sesion()
-    if data is None: return None
+def make_fig_carga(data=None):
+    if data is None: data, _ = obtener_resumen_sesion()
+    if data is None or data.empty: return None
     fig, ax = plt.subplots(figsize=(11.8, 5.5))
     colors = get_task_colors(len(data))
     bars = ax.bar(data["Nombre tarea"], data["Distancia total (m)"], color=colors, edgecolor="black", linewidth=0.8)
@@ -503,9 +507,9 @@ def make_fig_carga():
     plt.tight_layout()
     return fig
 
-def make_fig_hsr_sprint():
-    data, _ = obtener_resumen_sesion()
-    if data is None: return None
+def make_fig_hsr_sprint(data=None):
+    if data is None: data, _ = obtener_resumen_sesion()
+    if data is None or data.empty: return None
     x = list(range(len(data)))
     width = 0.38
     colors = get_task_colors(len(data))
@@ -524,9 +528,9 @@ def make_fig_hsr_sprint():
     plt.tight_layout()
     return fig
 
-def make_fig_acc_dec():
-    data, _ = obtener_resumen_sesion()
-    if data is None: return None
+def make_fig_acc_dec(data=None):
+    if data is None: data, _ = obtener_resumen_sesion()
+    if data is None or data.empty: return None
     x = list(range(len(data)))
     width = 0.38
     colors = get_task_colors(len(data))
@@ -545,8 +549,8 @@ def make_fig_acc_dec():
     plt.tight_layout()
     return fig
 
-def make_fig_aporte_porcentual(metric_col, title):
-    data, _ = obtener_resumen_sesion()
+def make_fig_aporte_porcentual(metric_col, title, data=None):
+    if data is None: data, _ = obtener_resumen_sesion()
     if data is None or metric_col not in data.columns: return None
     total = float(data[metric_col].fillna(0).sum())
     porcentajes = [0 for _ in range(len(data))] if total <= 0 else [(float(v) / total) * 100 for v in data[metric_col].fillna(0)]
@@ -758,7 +762,7 @@ with tabs[0]:
             if idx is not None: st.session_state.saved_sessions[idx] = payload
             else: st.session_state.saved_sessions.append(payload)
             with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
-            st.success(f"Sesión '{sess_name}' guardada.")
+            st.success(f"Sesión '{sess_name}' guardada correctamente en el Histórico.")
         else: st.error("No hay tareas para guardar.")
 
     st.divider()
@@ -892,20 +896,68 @@ with tabs[2]:
 # TAB 4: MICROCICLO
 # ------------------------------------------------------------
 with tabs[3]:
-    st.header("Ajuste de la sesión al microciclo")
-    if data is not None:
-        analysis_df = build_current_session_microcycle_table(resumen.iloc[0], day_val)
-        st.markdown(f"**Día seleccionado:** {day_val}")
-        st.markdown(build_day_status_summary_html(analysis_df), unsafe_allow_html=True)
-        st.markdown(build_progress_bars(resumen.iloc[0], day_val), unsafe_allow_html=True)
-        
-        st.dataframe(analysis_df.style.apply(lambda row: [state_color(row["Estado"]) for _ in row], axis=1), use_container_width=True)
-        
-        propuestas = generar_propuesta_ajuste(resumen.iloc[0], day_val)
-        html_props = "".join([f"<li>{p}</li>" for p in propuestas])
-        st.markdown(f'<div style="margin-top:12px;padding:14px;border:1px solid #e5e7eb;border-radius:14px;background:#fafafa;"><strong>Propuesta automática de ajuste</strong><ul style="margin:8px 0 0 18px;">{html_props}</ul></div>', unsafe_allow_html=True)
-    else:
-        st.info("Añade tareas para analizar el microciclo.")
+    st.header("Ajuste al Microciclo")
+    tab_mic_sesion, tab_mic_semana = st.tabs(["🎯 Análisis Sesión Actual", "📅 Análisis Semana (Acumulado)"])
+
+    with tab_mic_sesion:
+        st.subheader(f"Sesión Actual vs {day_val}")
+        if data is not None:
+            analysis_df = build_current_session_microcycle_table(resumen.iloc[0], day_val)
+            st.markdown(build_day_status_summary_html(analysis_df), unsafe_allow_html=True)
+            st.markdown(build_progress_bars(resumen.iloc[0], day_val), unsafe_allow_html=True)
+            st.dataframe(analysis_df.style.apply(lambda row: [state_color(row["Estado"]) for _ in row], axis=1), use_container_width=True)
+            
+            propuestas = generar_propuesta_ajuste(resumen.iloc[0], day_val)
+            html_props = "".join([f"<li>{p}</li>" for p in propuestas])
+            st.markdown(f'<div style="margin-top:12px;padding:14px;border:1px solid #e5e7eb;border-radius:14px;background:#fafafa;"><strong>Propuesta automática de ajuste</strong><ul style="margin:8px 0 0 18px;">{html_props}</ul></div>', unsafe_allow_html=True)
+        else:
+            st.info("Añade tareas para analizar el microciclo actual.")
+
+    with tab_mic_semana:
+        st.subheader(f"Análisis de la Semana {week_val} ({meso_name})")
+        wk_df = weekly_summary_dataframe()
+        if wk_df is not None and not wk_df.empty:
+            wk_actual = wk_df[(wk_df["Semana"] == week_val) & (wk_df["Mesociclo"] == meso_name)]
+            if not wk_actual.empty:
+                row_wk = wk_actual.iloc[0]
+                
+                # Estado general
+                estado_wk = row_wk['Estado semanal']
+                bg_wk = "#fee2e2" if "🔴" in estado_wk else ("#fef9c3" if "🟡" in estado_wk else "#dcfce7")
+                st.markdown(f'<div style="margin:10px 0 14px 0;padding:14px;border-radius:14px;background:{bg_wk};"><strong>Estado General Semanal:</strong> {estado_wk}</div>', unsafe_allow_html=True)
+
+                ranges = WEEKLY_TOTAL_RANGES["Titular"]
+                metrics = [
+                    ("Distancia total", float(row_wk["% dist vs partido"]), "distance"),
+                    ("HSR", float(row_wk["% hsr vs partido"]), "hsr"),
+                    ("Sprint", float(row_wk["% sprint vs partido"]), "sprint_distance"),
+                    ("ACC", float(row_wk["% acc vs partido"]), "acc"),
+                    ("DEC", float(row_wk["% dec vs partido"]), "dec"),
+                ]
+                
+                # Barras de progreso semanales
+                blocks = []
+                for label, pct, key in metrics:
+                    min_v, max_v = ranges[key]
+                    width = min(max(pct, 0), 100)
+                    if pct < min_v: color = "#eab308"
+                    elif pct > max_v: color = "#dc2626"
+                    else: color = "#16a34a"
+                    blocks.append(f'<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:13px;"><span><strong>{label}</strong></span><span>{pct:.1f}% (objetivo {min_v}-{max_v}%)</span></div><div style="width:100%;background:#e5e7eb;border-radius:999px;height:12px;overflow:hidden;"><div style="width:{width}%;background:{color};height:12px;"></div></div></div>')
+                st.markdown("<div style='padding:12px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;'>" + "".join(blocks) + "</div>", unsafe_allow_html=True)
+                
+                # Tabla semanal
+                wk_table_rows = []
+                for label, pct, key in metrics:
+                    min_v, max_v = ranges[key]
+                    wk_table_rows.append({"Variable": label, "% acumulado vs partido": round(pct, 2), "Objetivo mínimo (%)": min_v, "Objetivo máximo (%)": max_v, "Estado": microcycle_status(pct, min_v, max_v)})
+                
+                wk_table_df = pd.DataFrame(wk_table_rows)
+                st.dataframe(wk_table_df.style.apply(lambda r: [state_color(r["Estado"]) for _ in r], axis=1), use_container_width=True)
+            else:
+                st.info(f"No hay sesiones guardadas en la Semana {week_val} del {meso_name}.")
+        else:
+            st.info("El histórico está vacío, guarda sesiones para ver el acumulado semanal.")
 
 # ------------------------------------------------------------
 # TAB 5: ANÁLISIS
@@ -947,6 +999,7 @@ with tabs[5]:
     st.header("Histórico de Sesiones")
     hist_df = get_history_dataframe()
     if hist_df is not None:
+        st.subheader("📋 Resumen General de Sesiones")
         st.dataframe(hist_df, use_container_width=True)
         
         json_hist = json.dumps(st.session_state.saved_sessions, ensure_ascii=False, indent=2).encode('utf-8')
@@ -957,6 +1010,39 @@ with tabs[5]:
                 st.session_state.saved_sessions = []
                 with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump([], f)
                 st.rerun()
+
+        st.divider()
+        st.subheader("🔍 Ver detalles de una sesión guardada")
+        nombres_guardadas = [s["session_name"] for s in st.session_state.saved_sessions]
+        sel_sesion = st.selectbox("Selecciona la sesión a visualizar:", nombres_guardadas)
+        
+        if sel_sesion:
+            # Obtener datos de la sesión seleccionada
+            sess_obj = next(s for s in st.session_state.saved_sessions if s["session_name"] == sel_sesion)
+            d_sess = pd.DataFrame(sess_obj["tasks"])
+            r_sess = pd.DataFrame([sess_obj["summary"]])
+            
+            st.markdown(f"**Día:** {sess_obj['microcycle_day']} | **Semana:** {sess_obj['week']} | **Mesociclo:** {sess_obj['mesocycle']}")
+            st.markdown(session_cards_html(r_sess), unsafe_allow_html=True)
+            
+            st.markdown("#### Tareas guardadas")
+            st.dataframe(d_sess, use_container_width=True)
+            st.markdown("#### Resumen numérico")
+            st.dataframe(r_sess, use_container_width=True)
+            
+            st.markdown("#### Gráficas de la sesión guardada")
+            cg1, cg2 = st.columns(2)
+            with cg1: st.pyplot(make_fig_resumen_global(data=d_sess, resumen=r_sess))
+            with cg2: st.pyplot(make_fig_carga(data=d_sess))
+            
+            cg3, cg4 = st.columns(2)
+            with cg3: st.pyplot(make_fig_hsr_sprint(data=d_sess))
+            with cg4: st.pyplot(make_fig_acc_dec(data=d_sess))
+
+            cp1, cp2 = st.columns(2)
+            with cp1: st.pyplot(make_fig_aporte_porcentual("Distancia total (m)", "Distancia total", data=d_sess))
+            with cp2: st.pyplot(make_fig_aporte_porcentual("HSR total (m)", "HSR", data=d_sess))
+
     else:
         st.info("No hay sesiones guardadas.")
 
