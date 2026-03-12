@@ -3,7 +3,6 @@
 # Streamlit App - Versión Pro + Login Multi-Usuario (2ª RFEF)
 # ============================================================
 
-import os
 import math
 import json
 import copy
@@ -19,7 +18,7 @@ import streamlit as st
 # ============================================================
 # CONFIGURACIÓN DE STREAMLIT Y USUARIOS
 # ============================================================
-st.set_page_config(page_title="MetricFut - Calculadora de Cargas", layout="wide", page_icon="⚽")
+st.set_page_config(page_title="Calculadora Cargas Fútbol", layout="wide", page_icon="⚽")
 plt.rcParams["figure.figsize"] = (11, 5)
 
 # ------------------------------------------------------------
@@ -32,17 +31,6 @@ USUARIOS_PERMITIDOS = {
 }
 
 # ============================================================
-# LOGO PRINCIPAL (SIEMPRE VISIBLE ARRIBA)
-# ============================================================
-col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
-with col_logo2:
-    if os.path.exists("logo.jpg"):
-        st.image("logo.jpg", use_container_width=True)
-    else:
-        st.warning("⚠️ Asegúrate de guardar la imagen del logo como 'logo.jpg' en la misma carpeta que este script.")
-st.markdown("<hr style='margin-top: 0; margin-bottom: 20px;'>", unsafe_allow_html=True)
-
-# ============================================================
 # SISTEMA DE LOGIN (PANTALLA DE BLOQUEO)
 # ============================================================
 if 'logged_in' not in st.session_state:
@@ -50,6 +38,8 @@ if 'logged_in' not in st.session_state:
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
+    st.markdown('<div style="background: linear-gradient(90deg, #0f172a, #1e293b); color: #ffffff; padding: 18px 22px; border-radius: 16px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.18);"><h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">⚽ PERFORMANCE HUB</h1><p style="margin:5px 0 0 0;">Control de acceso</p></div>', unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         st.markdown("### Iniciar Sesión")
@@ -752,14 +742,7 @@ def detect_consecutive_neuromuscular_alerts():
 # ============================================================
 # FRONTEND - UI
 # ============================================================
-# LOGO EN LA PARTE SUPERIOR
-col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
-with col_logo2:
-    if os.path.exists("logo.jpg"):
-        st.image("logo.jpg", use_container_width=True)
-    else:
-        st.warning("⚠️ Asegúrate de guardar la imagen como 'logo.jpg' en la misma carpeta que este script para que se vea el logo.")
-st.markdown("<hr style='margin-top: 0; margin-bottom: 20px;'>", unsafe_allow_html=True)
+st.markdown('<div style="background: linear-gradient(90deg, #0f172a, #1e293b); color: #ffffff; padding: 18px 22px; border-radius: 16px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.18);"><h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">CALCULADORA AVANZADA DE CARGAS EN FÚTBOL</h1></div>', unsafe_allow_html=True)
 
 tabs = st.tabs(["Calculadora", "Sesión", "Librería", "Microciclo", "Análisis", "Histórico", "Comparación", "Mesociclo", "Justificación"])
 
