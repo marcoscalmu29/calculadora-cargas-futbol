@@ -350,13 +350,10 @@ def calcular_carga(jugadores, duracion, tipo, ida_vuelta_continua=False, largo=N
 # ============================================================
 # RESUMEN Y ANÁLISIS DE SESIÓN
 # ============================================================
-def obtener_resumen_sesion(tareas_df=None):
-    if tareas_df is None:
-        if not st.session_state.session_tasks: return None, None
-        df = pd.DataFrame(st.session_state.session_tasks)
-    else:
-        df = tareas_df
-        
+def obtener_resumen_sesion():
+    if not st.session_state.session_tasks:
+        return None, None
+    df = pd.DataFrame(st.session_state.session_tasks)
     resumen = pd.DataFrame({
         "Número de tareas": [len(df)],
         "Duración total (min)": [round(df["Duración (min)"].fillna(0).sum(), 2)],
@@ -455,7 +452,7 @@ def generar_propuesta_ajuste(summary_row, day_label):
 
 def session_cards_html(resumen=None):
     if resumen is None:
-        _, resumen = obtener_resumen_sesion()
+        data, resumen = obtener_resumen_sesion()
     if resumen is None or resumen.empty:
         return '<div style="padding:14px;border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;">No hay tareas en la sesión.</div>'
     vals = {
@@ -476,7 +473,8 @@ def session_cards_html(resumen=None):
 # GRÁFICOS MATPLOTLIB
 # ============================================================
 def make_fig_resumen_global(data=None, resumen=None):
-    if data is None or resumen is None: data, resumen = obtener_resumen_sesion()
+    if data is None or resumen is None:
+        data, resumen = obtener_resumen_sesion()
     if data is None: return None
     vals = {"Distancia total": resumen["Distancia total sesión (m)"].iloc[0], "Distancia sprint": resumen["Distancia sprint total sesión (m)"].iloc[0], "Nº sprints": resumen["Nº sprints totales sesión"].iloc[0], "HSR": resumen["HSR total sesión (m)"].iloc[0], "ACC": resumen["ACC total sesión (n)"].iloc[0], "DEC": resumen["DEC total sesión (n)"].iloc[0]}
     fig, ax = plt.subplots(figsize=(12.5, 5))
@@ -492,7 +490,8 @@ def make_fig_resumen_global(data=None, resumen=None):
     return fig
 
 def make_fig_carga(data=None):
-    if data is None: data, _ = obtener_resumen_sesion()
+    if data is None:
+        data, _ = obtener_resumen_sesion()
     if data is None or data.empty: return None
     fig, ax = plt.subplots(figsize=(11.8, 5.5))
     colors = get_task_colors(len(data))
@@ -508,7 +507,8 @@ def make_fig_carga(data=None):
     return fig
 
 def make_fig_hsr_sprint(data=None):
-    if data is None: data, _ = obtener_resumen_sesion()
+    if data is None:
+        data, _ = obtener_resumen_sesion()
     if data is None or data.empty: return None
     x = list(range(len(data)))
     width = 0.38
@@ -529,7 +529,8 @@ def make_fig_hsr_sprint(data=None):
     return fig
 
 def make_fig_acc_dec(data=None):
-    if data is None: data, _ = obtener_resumen_sesion()
+    if data is None:
+        data, _ = obtener_resumen_sesion()
     if data is None or data.empty: return None
     x = list(range(len(data)))
     width = 0.38
@@ -550,7 +551,8 @@ def make_fig_acc_dec(data=None):
     return fig
 
 def make_fig_aporte_porcentual(metric_col, title, data=None):
-    if data is None: data, _ = obtener_resumen_sesion()
+    if data is None:
+        data, _ = obtener_resumen_sesion()
     if data is None or metric_col not in data.columns: return None
     total = float(data[metric_col].fillna(0).sum())
     porcentajes = [0 for _ in range(len(data))] if total <= 0 else [(float(v) / total) * 100 for v in data[metric_col].fillna(0)]
@@ -754,16 +756,32 @@ with tabs[0]:
     
     st.markdown(f'<div style="display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 10px 0;"><div style="background:#eff6ff;border:1px solid #bfdbfe;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Tareas:</strong> {len(st.session_state.session_tasks)}</div><div style="background:#ecfeff;border:1px solid #a5f3fc;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Día:</strong> {day_val}</div><div style="background:#faf5ff;border:1px solid #d8b4fe;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Semana:</strong> {week_val}</div><div style="background:#fff7ed;border:1px solid #fdba74;padding:8px 12px;border-radius:999px;font-size:13px;"><strong>Mesociclo:</strong> {meso_name}</div></div>', unsafe_allow_html=True)
 
-    if st.button("💾 Guardar / Actualizar Sesión", type="primary"):
-        data_tmp, res_tmp = obtener_resumen_sesion()
-        if data_tmp is not None:
-            payload = {"session_name": sess_name, "microcycle_day": day_val, "week": week_val, "mesocycle": meso_name, "summary": res_tmp.iloc[0].to_dict(), "tasks": data_tmp.to_dict("records"), "updated_at": current_timestamp()}
-            idx = next((i for i, s in enumerate(st.session_state.saved_sessions) if s["session_name"] == sess_name), None)
-            if idx is not None: st.session_state.saved_sessions[idx] = payload
-            else: st.session_state.saved_sessions.append(payload)
-            with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
-            st.success(f"Sesión '{sess_name}' guardada correctamente en el Histórico.")
-        else: st.error("No hay tareas para guardar.")
+    c_save1, c_save2 = st.columns(2)
+    with c_save1:
+        if st.button("💾 Guardar / Actualizar (Seguir editando)", type="primary", use_container_width=True):
+            data_tmp, res_tmp = obtener_resumen_sesion()
+            if data_tmp is not None:
+                payload = {"session_name": sess_name, "microcycle_day": day_val, "week": week_val, "mesocycle": meso_name, "summary": res_tmp.iloc[0].to_dict(), "tasks": data_tmp.to_dict("records"), "updated_at": current_timestamp()}
+                idx = next((i for i, s in enumerate(st.session_state.saved_sessions) if s["session_name"] == sess_name), None)
+                if idx is not None: st.session_state.saved_sessions[idx] = payload
+                else: st.session_state.saved_sessions.append(payload)
+                with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
+                st.success(f"Sesión '{sess_name}' guardada. Puedes seguir añadiendo tareas.")
+            else: st.error("No hay tareas para guardar.")
+            
+    with c_save2:
+        if st.button("💾 Guardar y Empezar Nueva Sesión", type="secondary", use_container_width=True):
+            data_tmp, res_tmp = obtener_resumen_sesion()
+            if data_tmp is not None:
+                payload = {"session_name": sess_name, "microcycle_day": day_val, "week": week_val, "mesocycle": meso_name, "summary": res_tmp.iloc[0].to_dict(), "tasks": data_tmp.to_dict("records"), "updated_at": current_timestamp()}
+                idx = next((i for i, s in enumerate(st.session_state.saved_sessions) if s["session_name"] == sess_name), None)
+                if idx is not None: st.session_state.saved_sessions[idx] = payload
+                else: st.session_state.saved_sessions.append(payload)
+                with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f: json.dump(st.session_state.saved_sessions, f, ensure_ascii=False, indent=2)
+                st.session_state.session_tasks = []
+                st.success(f"Sesión '{sess_name}' guardada correctamente. Calculadora reiniciada para nueva sesión.")
+                st.rerun()
+            else: st.error("No hay tareas para guardar.")
 
     st.divider()
     st.header("2. Tarea")
@@ -901,13 +919,15 @@ with tabs[3]:
 
     with tab_mic_sesion:
         st.subheader(f"Sesión Actual vs {day_val}")
-        if data is not None:
-            analysis_df = build_current_session_microcycle_table(resumen.iloc[0], day_val)
+        data_m, resumen_m = obtener_resumen_sesion()
+        if data_m is not None:
+            analysis_df = build_current_session_microcycle_table(resumen_m.iloc[0], day_val)
             st.markdown(build_day_status_summary_html(analysis_df), unsafe_allow_html=True)
-            st.markdown(build_progress_bars(resumen.iloc[0], day_val), unsafe_allow_html=True)
+            st.markdown(build_progress_bars(resumen_m.iloc[0], day_val), unsafe_allow_html=True)
+            
             st.dataframe(analysis_df.style.apply(lambda row: [state_color(row["Estado"]) for _ in row], axis=1), use_container_width=True)
             
-            propuestas = generar_propuesta_ajuste(resumen.iloc[0], day_val)
+            propuestas = generar_propuesta_ajuste(resumen_m.iloc[0], day_val)
             html_props = "".join([f"<li>{p}</li>" for p in propuestas])
             st.markdown(f'<div style="margin-top:12px;padding:14px;border:1px solid #e5e7eb;border-radius:14px;background:#fafafa;"><strong>Propuesta automática de ajuste</strong><ul style="margin:8px 0 0 18px;">{html_props}</ul></div>', unsafe_allow_html=True)
         else:
@@ -921,7 +941,6 @@ with tabs[3]:
             if not wk_actual.empty:
                 row_wk = wk_actual.iloc[0]
                 
-                # Estado general
                 estado_wk = row_wk['Estado semanal']
                 bg_wk = "#fee2e2" if "🔴" in estado_wk else ("#fef9c3" if "🟡" in estado_wk else "#dcfce7")
                 st.markdown(f'<div style="margin:10px 0 14px 0;padding:14px;border-radius:14px;background:{bg_wk};"><strong>Estado General Semanal:</strong> {estado_wk}</div>', unsafe_allow_html=True)
@@ -935,7 +954,6 @@ with tabs[3]:
                     ("DEC", float(row_wk["% dec vs partido"]), "dec"),
                 ]
                 
-                # Barras de progreso semanales
                 blocks = []
                 for label, pct, key in metrics:
                     min_v, max_v = ranges[key]
@@ -946,7 +964,6 @@ with tabs[3]:
                     blocks.append(f'<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:13px;"><span><strong>{label}</strong></span><span>{pct:.1f}% (objetivo {min_v}-{max_v}%)</span></div><div style="width:100%;background:#e5e7eb;border-radius:999px;height:12px;overflow:hidden;"><div style="width:{width}%;background:{color};height:12px;"></div></div></div>')
                 st.markdown("<div style='padding:12px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;'>" + "".join(blocks) + "</div>", unsafe_allow_html=True)
                 
-                # Tabla semanal
                 wk_table_rows = []
                 for label, pct, key in metrics:
                     min_v, max_v = ranges[key]
@@ -1039,6 +1056,7 @@ with tabs[5]:
             with cg3: st.pyplot(make_fig_hsr_sprint(data=d_sess))
             with cg4: st.pyplot(make_fig_acc_dec(data=d_sess))
 
+            st.markdown("#### Aporte porcentual")
             cp1, cp2 = st.columns(2)
             with cp1: st.pyplot(make_fig_aporte_porcentual("Distancia total (m)", "Distancia total", data=d_sess))
             with cp2: st.pyplot(make_fig_aporte_porcentual("HSR total (m)", "HSR", data=d_sess))
@@ -1258,13 +1276,37 @@ with tabs[8]:
     </div>
 </div>
 
-<h3 style="color:#0f172a;">7) Box to Box</h3>
-<p>El ejercicio box to box sigue una lógica específica distinta al resto del modelo: parte de la distancia de carrera y del número de repeticiones, y aplica proporciones diferentes para estimar HSR, sprint y acciones ACC/DEC según la longitud del esfuerzo.</p>
-<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:18px;">
-    <div style="font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Distancia total = distancia_carrera × repeticiones</div>
+<h3 style="color:#0f172a;">7) Objetivos semanales</h3>
+<div style="overflow-x:auto;margin-bottom:18px;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;text-align:center;">
+        <thead>
+            <tr style="background:#0f172a;color:#ffffff;">
+                <th style="padding:10px;border:1px solid #cbd5e1;text-align:left;">Métrica</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Mínimo</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Máximo</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">Distancia total</td><td style="padding:9px;border:1px solid #e2e8f0;">170%</td><td style="padding:9px;border:1px solid #e2e8f0;">210%</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">Distancia sprint</td><td style="padding:9px;border:1px solid #e2e8f0;">75%</td><td style="padding:9px;border:1px solid #e2e8f0;">105%</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">HSR</td><td style="padding:9px;border:1px solid #e2e8f0;">90%</td><td style="padding:9px;border:1px solid #e2e8f0;">125%</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">ACC</td><td style="padding:9px;border:1px solid #e2e8f0;">145%</td><td style="padding:9px;border:1px solid #e2e8f0;">185%</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;text-align:left;">DEC</td><td style="padding:9px;border:1px solid #e2e8f0;">145%</td><td style="padding:9px;border:1px solid #e2e8f0;">185%</td></tr>
+        </tbody>
+    </table>
 </div>
 
-<h3 style="color:#0f172a;">8) Integración en el microciclo</h3>
-<p>La calculadora permite valorar si la carga total de la sesión es coherente con el día del microciclo en el que se ubica. De esta forma, no solo estima carga por tarea, sino que también permite interpretar si el contenido de la sesión está alineado con las exigencias esperadas de MD+1, MD-4, MD-3, MD-2 o MD-1.</p>
+<h3 style="color:#0f172a;">8) Referencias en formato APA 7ª edición</h3>
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;font-size:13px;line-height:1.5;">
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Bradley, P. S., & Ade, J. D. (2018). Are current physical match performance metrics in elite soccer fit for purpose or is the adoption of an integrated approach needed? <em>International Journal of Sports Physiology and Performance</em>, 13(5), 656–664. https://doi.org/10.1123/ijspp.2017-0433</p>
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Buchheit, M. (2023). <em>The 11 evidence-informed and inferred principles of microcycle periodization in elite football</em>. Sport Performance & Science Reports, 218. https://sportperfsci.com/the-11-evidence-informed-and-inferred-principles-of-microcycle-periodization-in-elite-football/</p>
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Buchheit, M., & Simpson, B. (2017). Player tracking technology: Half-full or half-empty glass? <em>International Journal of Sports Physiology and Performance</em>, 12(Suppl 2), S235–S241. https://doi.org/10.1123/ijspp.2016-0499</p>
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Casamichana, D., & Castellano, J. (2015). Relationship between indicators of training load in soccer players. <em>Journal of Strength and Conditioning Research</em>, 29(2), 368–374. https://doi.org/10.1519/JSC.0000000000000582</p>
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Hill-Haas, S., Dawson, B., Impellizzeri, F. M., & Coutts, A. J. (2011). Physiology of small-sided games training in football. <em>Sports Medicine</em>, 41(3), 199–220. https://doi.org/10.2165/11539740-000000000-00000</p>
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Martin-Garcia, A., Diaz, A. G., Bradley, P. S., Morera, F., & Casamichana, D. (2018). Quantification of a professional football team’s external load using a microcycle structure. <em>Journal of Strength and Conditioning Research</em>, 32(12), 3511–3518. https://doi.org/10.1519/JSC.0000000000002816</p>
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Malone, S., Roe, M., Doran, D. A., Gabbett, T., & Collins, K. (2017). High chronic training loads and exposure to bouts of maximal velocity running reduce injury risk in elite Gaelic football. <em>Journal of Science and Medicine in Sport</em>, 20(3), 250–254. https://doi.org/10.1016/j.jsams.2016.08.005</p>
+    <p style="margin:0 0 8px 0;padding-left:20px;text-indent:-20px;">Rago, V., Brito, J., Figueiredo, P., Krustrup, P., & Rebelo, A. (2020). Methods to collect and interpret external training load using microtechnology incorporating GPS in professional football: A systematic review. <em>Sports Medicine</em>, 50, 1–22. https://doi.org/10.1007/s40279-019-01171-6</p>
+    <p style="margin:0 0 0 0;padding-left:20px;text-indent:-20px;">Stevens, T. G. A., de Ruiter, C. J., Twisk, J. W. R., Savelsbergh, G. J. P., & Beek, P. J. (2017). Quantification of in-season training load relative to match load in professional Dutch Eredivisie football players. <em>Science and Medicine in Football</em>, 1(2), 117–125. https://doi.org/10.1080/24733938.2017.1282163</p>
+</div>
 </div>"""
     st.markdown(JUSTIFICACION_HTML, unsafe_allow_html=True)
