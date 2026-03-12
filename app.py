@@ -1,6 +1,6 @@
 # ============================================================
 # CALCULADORA AVANZADA DE CARGAS EN FÚTBOL
-# Streamlit App - Versión Fiel Google Colab Pro + MULTIUSUARIO
+# Streamlit App - Versión Pro + Login Multi-Usuario (2ª RFEF)
 # ============================================================
 
 import math
@@ -25,9 +25,9 @@ plt.rcParams["figure.figsize"] = (11, 5)
 # DICCIONARIO DE USUARIOS (Añade o cambia los que quieras)
 # ------------------------------------------------------------
 USUARIOS_PERMITIDOS = {
-    "MARCOS": "123",
-    "ALEX": "456",
-    "JAVI": "hyrox"
+    "marcos": "1234",
+    "mister": "futbol",
+    "prepa": "cargas2026"
 }
 
 # ============================================================
@@ -56,7 +56,7 @@ if not st.session_state.logged_in:
                 st.rerun()
             else:
                 st.error("❌ Usuario o contraseña incorrectos")
-    st.stop() # Si no estás logueado, el código se para aquí y no carga la app.
+    st.stop()
 
 # ============================================================
 # RUTAS DE ARCHIVOS DINÁMICAS POR USUARIO
@@ -74,8 +74,9 @@ with st.sidebar:
     st.divider()
 
 # ============================================================
-# ESTADO GLOBAL (CARGA DE DATOS DEL USUARIO)
+# ESTADO GLOBAL
 # ============================================================
+
 if 'session_tasks' not in st.session_state:
     st.session_state.session_tasks = []
 
@@ -96,8 +97,38 @@ if 'task_library' not in st.session_state:
         pass
 
 # ============================================================
+# REFERENCIA DE PARTIDO REAL (2ª RFEF, promedio 10 jornadas)
+# ============================================================
+
+MATCH_REFERENCE_2RFEF = {
+    "distance": 11039.7,            # m
+    "sprints": 11.08392543,         # n
+    "sprint_distance": 185.9381313, # m
+    "hsr": 567.234726,              # m
+    "acc": 128.54597,               # n
+    "dec": 120.173,                 # n
+}
+
+AVG_SPRINT_LENGTH_MATCH = (
+    MATCH_REFERENCE_2RFEF["sprint_distance"] / MATCH_REFERENCE_2RFEF["sprints"]
+    if MATCH_REFERENCE_2RFEF["sprints"] > 0 else 16.8
+)
+
+DEFAULT_MATCH_REFERENCE = {
+    "distance": MATCH_REFERENCE_2RFEF["distance"],
+    "hsr": MATCH_REFERENCE_2RFEF["hsr"],
+    "sprint_distance": MATCH_REFERENCE_2RFEF["sprint_distance"],
+    "acc": MATCH_REFERENCE_2RFEF["acc"],
+    "dec": MATCH_REFERENCE_2RFEF["dec"],
+    "sprints": MATCH_REFERENCE_2RFEF["sprints"],
+}
+
+DAY_ORDER = {"MD+1": 1, "MD-4": 2, "MD-3": 3, "MD-2": 4, "MD-1": 5, "Partido": 6}
+
+# ============================================================
 # FACTORES POR TIPO DE EJERCICIO
 # ============================================================
+
 FACTORES_EJERCICIO = {
     "Juego de posición":    {"hsr": 0.55, "sprint": 0.50, "acc": 0.80, "dec": 0.80},
     "Rondo":                {"hsr": 0.50, "sprint": 0.45, "acc": 1.00, "dec": 1.00},
@@ -112,78 +143,57 @@ FACTORES_EJERCICIO = {
 # ============================================================
 # MICROCICLO
 # ============================================================
+
 MICROCYCLE_DAY_RANGES = {
-    "MD+1":    {"distance": (55, 65), "hsr": (60, 75), "sprint_distance": (50, 65), "acc": (80, 90), "dec": (80, 90)},
-    "MD-4":    {"distance": (60, 70), "hsr": (30, 35), "sprint_distance": (25, 30), "acc": (75, 85), "dec": (75, 85)},
-    "MD-3":    {"distance": (55, 60), "hsr": (45, 50), "sprint_distance": (40, 45), "acc": (60, 70), "dec": (60, 70)},
-    "MD-2":    {"distance": (45, 50), "hsr": (25, 30), "sprint_distance": (20, 25), "acc": (55, 60), "dec": (55, 60)},
-    "MD-1":    {"distance": (30, 35), "hsr": (10, 15), "sprint_distance": (5, 10), "acc": (35, 45), "dec": (35, 45)},
+    "MD+1": {"distance": (60, 70), "hsr": (80, 90), "sprint_distance": (70, 80), "acc": (60, 80), "dec": (60, 80)},
+    "MD-4": {"distance": (50, 60), "hsr": (10, 20), "sprint_distance": (5, 10), "acc": (75, 85), "dec": (75, 85)},
+    "MD-3": {"distance": (65, 75), "hsr": (65, 80), "sprint_distance": (65, 75), "acc": (40, 50), "dec": (40, 50)},
+    "MD-2": {"distance": (35, 45), "hsr": (10, 15), "sprint_distance": (5, 15), "acc": (20, 30), "dec": (20, 30)},
+    "MD-1": {"distance": (20, 30), "hsr": (5, 10), "sprint_distance": (0, 5), "acc": (10, 20), "dec": (10, 20)},
     "Partido": {"distance": (100, 100), "hsr": (100, 100), "sprint_distance": (100, 100), "acc": (100, 100), "dec": (100, 100)},
 }
 
 WEEKLY_TOTAL_RANGES = {
     "Titular": {
-        "distance": (200, 210),
-        "hsr": (110, 120),
-        "sprint_distance": (90, 100),
-        "acc": (230, 260),
-        "dec": (230, 260),
+        "distance": (170, 210),
+        "hsr": (90, 125),
+        "sprint_distance": (75, 105),
+        "acc": (145, 185),
+        "dec": (145, 185),
     },
     "Suplente": {
-        "distance": (255, 275),
-        "hsr": (170, 195),
-        "sprint_distance": (140, 165),
-        "acc": (310, 350),
-        "dec": (310, 350),
+        "distance": (230, 280),
+        "hsr": (160, 210),
+        "sprint_distance": (145, 185),
+        "acc": (205, 265),
+        "dec": (205, 265),
     },
 }
 
-DEFAULT_MATCH_REFERENCE = {
-    "distance": 10000,
-    "hsr": 700,
-    "sprint_distance": 250,
-    "acc": 60,
-    "dec": 60,
-}
-
-DEFAULT_WEEKLY_ROLE = "Titular"
-DAY_ORDER = {"MD+1": 1, "MD-4": 2, "MD-3": 3, "MD-2": 4, "MD-1": 5, "Partido": 6}
-
 # ============================================================
-# UTILIDADES
+# UTILIDADES Y FÓRMULAS
 # ============================================================
-def validar_positivo(valor, nombre):
-    if valor is None or valor <= 0:
-        raise ValueError(f"{nombre} debe ser mayor que 0.")
+
+def validar_positivo(valor): return max(valor, 0.001)
 
 def calcular_app(largo, ancho, jugadores):
-    validar_positivo(largo, "El largo")
-    validar_positivo(ancho, "El ancho")
-    validar_positivo(jugadores, "El número de jugadores")
-    return (largo * ancho) / jugadores
+    return (validar_positivo(largo) * validar_positivo(ancho)) / validar_positivo(jugadores)
 
 def hsr_relativo(app):
     if app < 100: return 0.5
-    if app < 150: return 2.0
-    if app < 182: return 4.0
-    if app < 225: return 6.0
+    elif app < 150: return 2.0
+    elif app < 182: return 4.0
+    elif app < 225: return 6.0
     return 8.0
 
 def clasificar_carga(carga_total):
     if carga_total < 300: return "Baja", "🟢"
-    if carga_total < 700: return "Media", "🟡"
+    elif carga_total < 700: return "Media", "🟡"
     return "Alta", "🔴"
 
-def wrap_text(texto, width=110):
-    return "\n".join(textwrap.wrap(str(texto), width=width))
-
-def safe_div(a, b):
-    if b in [None, 0]: return None
-    return a / b
-
-def pct_of_match(value, ref):
-    if ref in [None, 0]: return None
-    return (float(value) / float(ref)) * 100
+def wrap_text(texto, width=110): return "\n".join(textwrap.wrap(str(texto), width=width))
+def safe_div(a, b): return None if b in [None, 0] else a / b
+def pct_of_match(value, ref): return None if ref in [None, 0] else (float(value) / float(ref)) * 100
 
 def microcycle_status(value, min_v, max_v):
     if value is None: return "Sin referencia"
@@ -206,12 +216,8 @@ def session_ratio_hsr_sprint_vs_acc_dec(hsr, sprint, acc, dec):
     den = float(acc or 0) + float(dec or 0)
     return safe_div(num, den)
 
-def current_timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def current_timestamp(): return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# ============================================================
-# FACTORES EXTRA Y FÓRMULAS
-# ============================================================
 def factor_longitudinal(largo, ancho, tipo):
     if ancho <= 0: return 1.0
     ratio = largo / ancho
@@ -233,8 +239,7 @@ def minimo_hsr_min(largo, tipo, ida_vuelta_continua):
     elif largo >= 30: base = 5.5
     elif largo >= 25: base = 4.5
     else: base = 3.0
-    if ida_vuelta_continua: base *= 1.15
-    return base
+    return base * 1.15 if ida_vuelta_continua else base
 
 def minimo_sprint_min(largo, tipo, ida_vuelta_continua):
     if tipo != "Transición/Oleadas": return 0.0
@@ -242,10 +247,10 @@ def minimo_sprint_min(largo, tipo, ida_vuelta_continua):
     elif largo >= 30: base = 0.80
     elif largo >= 25: base = 0.60
     else: base = 0.35
-    if ida_vuelta_continua: base *= 1.10
-    return base
+    return base * 1.10 if ida_vuelta_continua else base
 
 def metricas_base_excel(app):
+    app = validar_positivo(app)
     dt = 19.243 * math.log(app) - 5.029
     d_sprint = 0.001 * app - 0.046
     d_acc = 1.321 * math.log(app) - 0.629
@@ -254,34 +259,19 @@ def metricas_base_excel(app):
     dec = 0.104 * math.log(app) - 0.096
     return max(dt, 0), max(d_sprint, 0), max(d_acc, 0), max(acc, 0), max(d_dec, 0), max(dec, 0)
 
-def box_to_box_hsr_ratio(distancia_carrera):
-    if distancia_carrera < 20: return 0.18
-    if distancia_carrera < 30: return 0.35
-    if distancia_carrera < 40: return 0.50
-    return 0.58
-
-def box_to_box_sprint_ratio(distancia_carrera):
-    if distancia_carrera < 20: return 0.00
-    if distancia_carrera < 30: return 0.06
-    if distancia_carrera < 40: return 0.12
-    return 0.18
-
-def box_to_box_acc_dec_totales(repeticiones, distancia_carrera):
-    if distancia_carrera < 20: factor = 0.60
-    elif distancia_carrera < 30: factor = 0.50
-    elif distancia_carrera < 40: factor = 0.40
-    else: factor = 0.30
-    acc_total = max(1, round(repeticiones * factor, 2))
-    dec_total = max(1, round(repeticiones * factor, 2))
-    return acc_total, dec_total
+def box_to_box_hsr_ratio(d): return 0.18 if d < 20 else (0.35 if d < 30 else (0.50 if d < 40 else 0.58))
+def box_to_box_sprint_ratio(d): return 0.00 if d < 20 else (0.06 if d < 30 else (0.12 if d < 40 else 0.18))
+def box_to_box_acc_dec_totales(reps, d):
+    f = 0.60 if d < 20 else (0.50 if d < 30 else (0.40 if d < 40 else 0.30))
+    return max(1, round(reps * f, 2)), max(1, round(reps * f, 2))
 
 def interpretacion_practica(carga_total, hsr_total, sprint_distance_total, acc_total, dec_total, tipo):
-    txt_carga = "la carga global es baja" if carga_total < 300 else ("la carga global es media" if carga_total < 700 else "la carga global es alta")
-    txt_hsr = "la exposición al HSR es reducida" if hsr_total < 20 else ("la exposición al HSR es moderada" if hsr_total < 50 else "la exposición al HSR es elevada")
-    txt_sprint = "la distancia a sprint es baja" if sprint_distance_total < 10 else ("la distancia a sprint es moderada" if sprint_distance_total < 25 else "la distancia a sprint es alta")
-    txt_acc = "el volumen de aceleraciones es bajo" if acc_total < 5 else ("el volumen de aceleraciones es moderado" if acc_total < 12 else "el volumen de aceleraciones es alto")
-    txt_dec = "el volumen de deceleraciones es bajo" if dec_total < 5 else ("el volumen de deceleraciones es moderado" if dec_total < 12 else "el volumen de deceleraciones es alto")
-    return f"En {tipo.lower()}, {txt_carga}; además, {txt_hsr}, {txt_sprint}, {txt_acc} y {txt_dec}."
+    txt_carga = "baja" if carga_total < 300 else ("media" if carga_total < 700 else "alta")
+    txt_hsr = "reducida" if hsr_total < 20 else ("moderada" if hsr_total < 50 else "elevada")
+    txt_sprint = "baja" if sprint_distance_total < 10 else ("moderada" if sprint_distance_total < 25 else "alta")
+    txt_acc = "bajo" if acc_total < 5 else ("moderado" if acc_total < 12 else "alto")
+    txt_dec = "bajo" if dec_total < 5 else ("moderado" if dec_total < 12 else "alto")
+    return f"En {tipo.lower()}, la carga global es {txt_carga}; además, la exposición al HSR es {txt_hsr}, la distancia a sprint es {txt_sprint}, aceleraciones {txt_acc} y deceleraciones {txt_dec}."
 
 # ============================================================
 # CÁLCULO PRINCIPAL
@@ -293,8 +283,7 @@ def calcular_carga(jugadores, duracion, tipo, ida_vuelta_continua=False, largo=N
         distancia_total = distancia_carrera * reps
         hsr_total = distancia_total * box_to_box_hsr_ratio(distancia_carrera)
         sprint_distance_total = distancia_total * box_to_box_sprint_ratio(distancia_carrera)
-        longitud_media_sprint = 19.1
-        sprints_totales = sprint_distance_total / longitud_media_sprint if longitud_media_sprint > 0 else 0
+        sprints_totales = sprint_distance_total / AVG_SPRINT_LENGTH_MATCH if AVG_SPRINT_LENGTH_MATCH > 0 else 0
         acc_total, dec_total = box_to_box_acc_dec_totales(reps, distancia_carrera)
         interp = interpretacion_practica(distancia_total, hsr_total, sprint_distance_total, acc_total, dec_total, tipo)
         clasificacion, semaforo = clasificar_carga(distancia_total)
@@ -327,8 +316,7 @@ def calcular_carga(jugadores, duracion, tipo, ida_vuelta_continua=False, largo=N
     sprint_distance_min = max(sprint_distance_min_modelo, suelo_sprint)
     sprint_distance_total = sprint_distance_min * duracion
 
-    longitud_media_sprint = 19.1
-    sprints_totales = sprint_distance_total / longitud_media_sprint if longitud_media_sprint > 0 else 0
+    sprints_totales = sprint_distance_total / AVG_SPRINT_LENGTH_MATCH if AVG_SPRINT_LENGTH_MATCH > 0 else 0
     sprints_min = sprints_totales / duracion if duracion > 0 else 0
 
     acc_min = acc * factores["acc"]
@@ -414,12 +402,9 @@ def build_day_status_summary_html(analysis_df):
     n_green = sum(analysis_df["Estado"].astype(str).str.contains("🟢"))
     n_yellow = sum(analysis_df["Estado"].astype(str).str.contains("🟡"))
     n_red = sum(analysis_df["Estado"].astype(str).str.contains("🔴"))
-    if n_red >= 2:
-        general, bg, border = "🔴 Sesión demasiado alejada del objetivo del día", "#fee2e2", "#fca5a5"
-    elif n_yellow >= 2:
-        general, bg, border = "🟡 Sesión parcialmente ajustada al día", "#fef9c3", "#fde68a"
-    else:
-        general, bg, border = "🟢 Sesión bien ajustada al día", "#dcfce7", "#86efac"
+    if n_red >= 2: general, bg, border = "🔴 Sesión demasiado alejada del objetivo del día", "#fee2e2", "#fca5a5"
+    elif n_yellow >= 2: general, bg, border = "🟡 Sesión parcialmente ajustada al día", "#fef9c3", "#fde68a"
+    else: general, bg, border = "🟢 Sesión bien ajustada al día", "#dcfce7", "#86efac"
     return f'<div style="margin:10px 0 14px 0;padding:14px;border:1px solid {border};border-radius:14px;background:{bg};"><div style="font-weight:700;margin-bottom:6px;">{general}</div><div style="font-size:13px;">Adecuadas: <strong>{n_green}</strong> &nbsp; | &nbsp; Bajas: <strong>{n_yellow}</strong> &nbsp; | &nbsp; Altas: <strong>{n_red}</strong></div></div>'
 
 def build_progress_bars(summary_row, day_label):
@@ -987,7 +972,26 @@ with tabs[6]:
         with cb: sel_b = st.selectbox("Sesión B", nombres, index=1)
         
         df_comp = compare_saved_sessions(sel_a, sel_b)
-        if df_comp is not None: st.dataframe(df_comp, use_container_width=True)
+        if df_comp is not None: 
+            st.dataframe(df_comp, use_container_width=True)
+            
+            metrics = ["Distancia total sesión (m)", "HSR total sesión (m)", "Distancia sprint total sesión (m)", "ACC total sesión (n)", "DEC total sesión (n)", "Carga total sesión (m)"]
+            sess_a = next(s for s in st.session_state.saved_sessions if s["session_name"] == sel_a)
+            sess_b = next(s for s in st.session_state.saved_sessions if s["session_name"] == sel_b)
+            a_vals = [float(sess_a["summary"].get(m, 0)) for m in metrics]
+            b_vals = [float(sess_b["summary"].get(m, 0)) for m in metrics]
+            
+            x = list(range(len(metrics)))
+            width = 0.38
+            fig, ax = plt.subplots(figsize=(12.5, 5.8))
+            ax.bar([i - width/2 for i in x], a_vals, width=width, label=sel_a)
+            ax.bar([i + width/2 for i in x], b_vals, width=width, label=sel_b)
+            ax.set_title("Comparación visual de métricas entre sesiones", fontsize=15, fontweight="bold")
+            ax.set_xticks(x)
+            ax.set_xticklabels(["Distancia total", "HSR", "Sprint", "ACC", "DEC", "Carga total"], rotation=20, ha="right")
+            ax.grid(axis="y", linestyle="--", alpha=0.3)
+            ax.legend()
+            st.pyplot(fig)
     else:
         st.info("Necesitas al menos 2 sesiones guardadas para comparar.")
 
@@ -1081,7 +1085,29 @@ with tabs[8]:
     </div>
 </div>
 
-<h3 style="color:#0f172a;">3) Explicación del HSR</h3>
+<h3 style="color:#0f172a;">3) Referencia real de partido empleada</h3>
+<p>Para contextualizar mejor los análisis, la aplicación toma como referencia la media de los últimos 10 partidos de un equipo de <strong>2ª RFEF</strong>. Estos valores se usan como base para comparar la sesión con el partido y para estimar con mayor realismo la longitud media del sprint.</p>
+
+<div style="overflow-x:auto;margin-bottom:18px;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+            <tr style="background:#0f172a;color:#ffffff;">
+                <th style="padding:10px;border:1px solid #cbd5e1;">Variable</th>
+                <th style="padding:10px;border:1px solid #cbd5e1;">Promedio</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;">Distancia total</td><td style="padding:9px;border:1px solid #e2e8f0;">11039,7 m</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">Nº sprints</td><td style="padding:9px;border:1px solid #e2e8f0;">11,08</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;">Distancia sprint</td><td style="padding:9px;border:1px solid #e2e8f0;">185,93 m</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">HSR</td><td style="padding:9px;border:1px solid #e2e8f0;">567,23 m</td></tr>
+            <tr><td style="padding:9px;border:1px solid #e2e8f0;">ACC</td><td style="padding:9px;border:1px solid #e2e8f0;">128,54</td></tr>
+            <tr style="background:#f8fafc;"><td style="padding:9px;border:1px solid #e2e8f0;">DEC</td><td style="padding:9px;border:1px solid #e2e8f0;">120,17</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<h3 style="color:#0f172a;">4) Explicación del HSR</h3>
 <p>El <strong>HSR</strong> no se estima con una única ecuación lineal, sino mediante un modelo práctico por tramos en función del ApP, corregido después por el tipo de ejercicio y por la estructura espacial y temporal de la tarea. Esto permite representar mejor que no todas las tareas con el mismo espacio generan la misma exposición a alta velocidad.</p>
 
 <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
@@ -1103,7 +1129,7 @@ with tabs[8]:
     </div>
 </div>
 
-<h3 style="color:#0f172a;">4) Factores de corrección por tipo de ejercicio</h3>
+<h3 style="color:#0f172a;">5) Factores de corrección por tipo de ejercicio</h3>
 <p>Cada tipo de tarea aplica factores específicos sobre HSR, sprint, aceleraciones y deceleraciones. Estos factores permiten ajustar la estimación a la naturaleza del ejercicio. Por ejemplo, las transiciones y oleadas multiplican especialmente HSR y sprint, mientras que rondos o juegos de posición concentran más acciones mecánicas cortas.</p>
 
 <div style="overflow-x:auto;margin-bottom:18px;">
@@ -1130,7 +1156,7 @@ with tabs[8]:
     </table>
 </div>
 
-<h3 style="color:#0f172a;">5) Factores estructurales adicionales</h3>
+<h3 style="color:#0f172a;">6) Factores estructurales adicionales</h3>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0;">
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
         <strong>Factor longitudinal</strong>
@@ -1146,13 +1172,13 @@ with tabs[8]:
     </div>
 </div>
 
-<h3 style="color:#0f172a;">6) Box to Box</h3>
+<h3 style="color:#0f172a;">7) Box to Box</h3>
 <p>El ejercicio box to box sigue una lógica específica distinta al resto del modelo: parte de la distancia de carrera y del número de repeticiones, y aplica proporciones diferentes para estimar HSR, sprint y acciones ACC/DEC según la longitud del esfuerzo.</p>
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:18px;">
     <div style="font-family:monospace;font-size:15px;background:#ffffff;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">Distancia total = distancia_carrera × repeticiones</div>
 </div>
 
-<h3 style="color:#0f172a;">7) Integración en el microciclo</h3>
+<h3 style="color:#0f172a;">8) Integración en el microciclo</h3>
 <p>La calculadora permite valorar si la carga total de la sesión es coherente con el día del microciclo en el que se ubica. De esta forma, no solo estima carga por tarea, sino que también permite interpretar si el contenido de la sesión está alineado con las exigencias esperadas de MD+1, MD-4, MD-3, MD-2 o MD-1.</p>
 </div>"""
     st.markdown(JUSTIFICACION_HTML, unsafe_allow_html=True)
